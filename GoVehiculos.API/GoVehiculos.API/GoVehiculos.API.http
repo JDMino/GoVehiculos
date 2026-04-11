@@ -1,0 +1,6 @@
+@GoVehiculos.API_HostAddress = http://localhost:5210
+
+GET {{GoVehiculos.API_HostAddress}}/weatherforecast/
+Accept: application/json
+
+###
