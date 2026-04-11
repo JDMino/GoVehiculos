@@ -1,0 +1,77 @@
+# ==========================================
+# 1. FRONTEND (Node.js / React / Vite)
+# ==========================================
+# Dependencias
+node_modules/
+jspm_packages/
+
+# Archivos de construcción (Build)
+dist/
+build/
+out/
+
+# Logs de errores
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+pnpm-debug.log*
+
+# Caché local
+.eslintcache
+.vite/
+
+# ==========================================
+# 2. BACKEND (.NET / C# / Visual Studio)
+# ==========================================
+# Carpetas de compilación
+[Bb]in/
+[Oo]bj/
+out/
+
+# Archivos de Visual Studio y configuraciones locales de usuario
+.vs/
+*.user
+*.userosscache
+*.sln.docstates
+*.suo
+*.ide
+
+# Archivos de bases de datos locales
+*.mdf
+*.ldf
+*.ndf
+*.sqlite
+*.db
+
+# ==========================================
+# 3. VARIABLES DE ENTORNO
+# ==========================================
+# Frontend
+.env
+.env.local
+.env.development.local
+.env.test.local
+.env.production.local
+
+# Backend
+appsettings.Development.json
+appsettings.Local.json
+
+# ==========================================
+# 4. SISTEMA OPERATIVO Y HERRAMIENTAS
+# ==========================================
+# macOS
+.DS_Store
+.AppleDouble
+.LSOverride
+
+# Windows
+Thumbs.db
+Thumbs.db:encryptable
+ehthumbs.db
+ehthumbs_vista.db
+*.cab
+*.msi
+*.msm
+*.msp
+*.lnk
