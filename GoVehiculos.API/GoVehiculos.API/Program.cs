@@ -44,6 +44,8 @@ builder.Services.AddSwaggerGen();
 
 builder.Services.AddScoped<AuthService>();
 builder.Services.AddScoped<UsuarioService>();
+builder.Services.AddScoped<VehiculoService>();
+
 
 
 var app = builder.Build();
