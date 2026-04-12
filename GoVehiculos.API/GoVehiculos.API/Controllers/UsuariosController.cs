@@ -1,70 +1,57 @@
-using GoVehiculos.API.Data;
-using GoVehiculos.API.Models;
+using GoVehiculos.API.DTOs;
+using GoVehiculos.API.Services;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
-using Microsoft.EntityFrameworkCore;
 
 namespace GoVehiculos.API.Controllers
 {
-    [ApiController]
     [Route("api/[controller]")]
-    [Authorize] // Protegemos el CRUD con JWT
+    [ApiController]
+    [Authorize]
     public class UsuariosController : ControllerBase
     {
-        private readonly ApplicationDbContext _context;
+        private readonly UsuarioService _service;
 
-        public UsuariosController(ApplicationDbContext context)
+        public UsuariosController(UsuarioService service)
         {
-            _context = context;
+            _service = service;
         }
 
-        // GET: api/usuarios
         [HttpGet]
-        public async Task<IActionResult> GetUsuarios()
+        public async Task<IActionResult> GetAll()
         {
-            var usuarios = await _context.Usuarios.Include(u => u.Rol).ToListAsync();
+            var usuarios = await _service.GetAllAsync();
             return Ok(usuarios);
         }
 
-        // GET: api/usuarios/{id}
         [HttpGet("{id}")]
-        public async Task<IActionResult> GetUsuario(int id)
+        public async Task<IActionResult> GetById(int id)
         {
-            var usuario = await _context.Usuarios.Include(u => u.Rol)
-                                                 .FirstOrDefaultAsync(u => u.IdUsuario == id);
+            var usuario = await _service.GetByIdAsync(id);
             if (usuario == null) return NotFound();
             return Ok(usuario);
         }
 
-        // POST: api/usuarios
         [HttpPost]
-        public async Task<IActionResult> CreateUsuario(Usuario usuario)
+        public async Task<IActionResult> Create(UsuarioCreateDTO dto)
         {
-            _context.Usuarios.Add(usuario);
-            await _context.SaveChangesAsync();
-            return CreatedAtAction(nameof(GetUsuario), new { id = usuario.IdUsuario }, usuario);
+            var nuevo = await _service.CreateAsync(dto);
+            return CreatedAtAction(nameof(GetById), new { id = nuevo.IdUsuario }, nuevo);
         }
 
-        // PUT: api/usuarios/{id}
         [HttpPut("{id}")]
-        public async Task<IActionResult> UpdateUsuario(int id, Usuario usuario)
+        public async Task<IActionResult> Update(int id, UsuarioUpdateDTO dto)
         {
-            if (id != usuario.IdUsuario) return BadRequest();
-
-            _context.Entry(usuario).State = EntityState.Modified;
-            await _context.SaveChangesAsync();
+            var ok = await _service.UpdateAsync(id, dto);
+            if (!ok) return NotFound();
             return NoContent();
         }
 
-        // DELETE: api/usuarios/{id}
         [HttpDelete("{id}")]
-        public async Task<IActionResult> DeleteUsuario(int id)
+        public async Task<IActionResult> Delete(int id)
         {
-            var usuario = await _context.Usuarios.FindAsync(id);
-            if (usuario == null) return NotFound();
-
-            _context.Usuarios.Remove(usuario);
-            await _context.SaveChangesAsync();
+            var ok = await _service.DeleteAsync(id);
+            if (!ok) return NotFound();
             return NoContent();
         }
     }

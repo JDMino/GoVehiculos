@@ -1,7 +1,10 @@
+using System.ComponentModel.DataAnnotations;
+
 namespace GoVehiculos.API.Models
 {
     public class Notificacion
     {
+        [Key]
         public int IdNotificacion { get; set; }
         public int UsuarioId { get; set; }
         public string Tipo { get; set; } = string.Empty;

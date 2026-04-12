@@ -1,14 +1,15 @@
 import { BrowserRouter, Routes, Route } from "react-router-dom";
-import Login from "./pages/Login";
-import Register from "./pages/Register";
+import UsuariosList from "./pages/Usuarios/UsuariosList";
+import UsuarioForm from "./pages/Usuarios/UsuarioForm";
+import UsuarioEdit from "./pages/Usuarios/UsuarioEdit";
 
 function App() {
   return (
     <BrowserRouter>
       <Routes>
-        <Route path="/" element={<Login />} />
-        <Route path="/login" element={<Login />} />
-        <Route path="/register" element={<Register />} />
+        <Route path="/usuarios" element={<UsuariosList />} />
+        <Route path="/usuarios/nuevo" element={<UsuarioForm />} />
+        <Route path="/usuarios/editar/:id" element={<UsuarioEdit />} />
       </Routes>
     </BrowserRouter>
   );
