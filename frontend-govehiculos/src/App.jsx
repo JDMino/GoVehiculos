@@ -36,13 +36,15 @@ const ProtectedRoute = ({ allowedRoles, children }) => {
 // 2. COMPONENTE LAYOUT: Renderiza Navbar/Footer condicionalmente
 const Layout = ({ children }) => {
   const location = useLocation();
+  const { user, logout } = useAuthStore(); // 👈 obtenemos user y logout del store
   const isAuthPage = location.pathname === "/login" || location.pathname === "/register";
 
   if (isAuthPage) return <>{children}</>;
 
   return (
     <div className="flex flex-col min-h-screen bg-gray-50">
-      <Navbar />
+      {/* Pasamos user y logout al Navbar */}
+      <Navbar user={user} onLogout={logout} />
       <main className="flex-grow">{children}</main>
       <Footer />
     </div>

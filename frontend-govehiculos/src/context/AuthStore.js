@@ -5,19 +5,29 @@ const useAuthStore = create((set) => ({
   user: null,
   isAuthenticated: false,
 
-  login: async (email, password) => {
-    try {
-      const res = await api.post("/Auth/login", { email, password });
-      const { token, rolId } = res.data;
+ login: async (email, password) => {
+  try {
+    const res = await api.post("/Auth/login", { email, password });
+    const { token, rolId, nombre, apellido, email: userEmail, errorMessage } = res.data;
 
-      localStorage.setItem("token", token);
-      set({ user: { email, rolId }, isAuthenticated: true });
-      return true;
-    } catch (err) {
-      console.error("Error en login:", err);
-      return false;
+    if (errorMessage) {
+      //alert(errorMessage); // mostramos mensaje de cuenta inactiva
+      return { success: false };
     }
-  },
+
+    localStorage.setItem("token", token);
+    set({
+      user: { email: userEmail, rolId, nombre, apellido },
+      isAuthenticated: true,
+    });
+
+    return { success: true, rolId };
+  } catch (err) {
+    console.error("Error en login:", err);
+    return { success: false };
+  }
+},
+
 
   register: async (form) => {
     try {

@@ -1,4 +1,4 @@
-using GoVehiculos.API.Data;
+﻿using GoVehiculos.API.Data;
 using GoVehiculos.API.DTOs;
 using GoVehiculos.API.Models;
 using Microsoft.EntityFrameworkCore;
@@ -6,7 +6,6 @@ using Microsoft.IdentityModel.Tokens;
 using System.IdentityModel.Tokens.Jwt;
 using System.Security.Claims;
 using System.Text;
-using BCrypt.Net;
 
 namespace GoVehiculos.API.Services
 {
@@ -27,11 +26,26 @@ namespace GoVehiculos.API.Services
             if (user == null || !BCrypt.Net.BCrypt.Verify(request.Password, user.PasswordHash))
                 return null;
 
+            // 🚫 Validación de usuario inactivo
+            if (!user.Activo)
+            {
+                // devolvemos un LoginResponse especial con un flag de error
+                return new LoginResponse
+                {
+                    ErrorMessage = "Tu cuenta está inactiva. Contacta al administrador.",
+                    Token = string.Empty,
+                    RolId = user.RolId,
+                    Nombre = user.Nombre,
+                    Apellido = user.Apellido,
+                    Email = user.Email
+                };
+            }
+
             var claims = new[]
             {
-                new Claim(JwtRegisteredClaimNames.Sub, user.Email),
-                new Claim("rol_id", user.RolId.ToString())
-            };
+        new Claim(JwtRegisteredClaimNames.Sub, user.Email),
+        new Claim("rol_id", user.RolId.ToString())
+    };
 
             var key = new SymmetricSecurityKey(Encoding.UTF8.GetBytes(_config["Jwt:Key"]));
             var creds = new SigningCredentials(key, SecurityAlgorithms.HmacSha256);
@@ -47,7 +61,10 @@ namespace GoVehiculos.API.Services
             return new LoginResponse
             {
                 Token = new JwtSecurityTokenHandler().WriteToken(token),
-                RolId = user.RolId
+                RolId = user.RolId,
+                Nombre = user.Nombre,
+                Apellido = user.Apellido,
+                Email = user.Email
             };
         }
 
