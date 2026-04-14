@@ -6,8 +6,10 @@ import Navbar from "./components/Navbar";
 import Footer from "./components/Footer";
 
 // Páginas
+import Home from "./pages/Home";
 import Login from "./pages/Login";
 import Register from "./pages/Register";
+import Dashboard from "./pages/Dashboard";
 import UsuariosList from "./pages/Usuarios/UsuariosList";
 import UsuarioForm from "./pages/Usuarios/UsuarioForm";
 import UsuarioEdit from "./pages/Usuarios/UsuarioEdit";
@@ -24,9 +26,8 @@ const ProtectedRoute = ({ allowedRoles, children }) => {
   }
 
   const userRolId = user?.rolId || 1;
-  // Si el rol del usuario no está en la lista de permitidos, redirige a vehículos
   if (allowedRoles && !allowedRoles.includes(userRolId)) {
-    return <Navigate to="/vehiculos" replace />;
+    return <Navigate to="/home" replace />;
   }
 
   return children;
@@ -35,7 +36,6 @@ const ProtectedRoute = ({ allowedRoles, children }) => {
 // 2. COMPONENTE LAYOUT: Renderiza Navbar/Footer condicionalmente
 const Layout = ({ children }) => {
   const location = useLocation();
-  // No mostramos Navbar ni Footer en Login o Registro
   const isAuthPage = location.pathname === "/login" || location.pathname === "/register";
 
   if (isAuthPage) return <>{children}</>;
@@ -43,9 +43,7 @@ const Layout = ({ children }) => {
   return (
     <div className="flex flex-col min-h-screen bg-gray-50">
       <Navbar />
-      <main className="flex-grow">
-        {children}
-      </main>
+      <main className="flex-grow">{children}</main>
       <Footer />
     </div>
   );
@@ -57,66 +55,77 @@ export default function App() {
       <Layout>
         <Routes>
           {/* Redirección por defecto */}
-          <Route path="/" element={<Navigate to="/login" replace />} />
+          <Route path="/" element={<Navigate to="/home" replace />} />
 
           {/* Rutas Públicas */}
+          <Route path="/home" element={<Home />} />
           <Route path="/login" element={<Login />} />
           <Route path="/register" element={<Register />} />
 
+          {/* Dashboard (solo roles 3 y 4) */}
+          <Route
+            path="/dashboard"
+            element={
+              <ProtectedRoute allowedRoles={[3, 4]}>
+                <Dashboard />
+              </ProtectedRoute>
+            }
+          />
+
           {/* MÓDULO VEHÍCULOS (Accesible por todos los logueados) */}
-          <Route 
-            path="/vehiculos" 
+          <Route
+            path="/vehiculos"
             element={
               <ProtectedRoute allowedRoles={[1, 2, 3, 4]}>
                 <VehiculosList />
               </ProtectedRoute>
-            } 
+            }
           />
-          <Route 
-            path="/vehiculos/nuevo" 
+          <Route
+            path="/vehiculos/nuevo"
             element={
               <ProtectedRoute allowedRoles={[2, 4]}>
                 <VehiculoForm />
               </ProtectedRoute>
-            } 
+            }
           />
-          <Route 
-            path="/vehiculos/editar/:id" 
+          <Route
+            path="/vehiculos/editar/:id"
             element={
               <ProtectedRoute allowedRoles={[2, 4]}>
                 <VehiculoEdit />
               </ProtectedRoute>
-            } 
+            }
           />
 
-          {/* MÓDULO USUARIOS (Solo Administrador) */}
-          <Route 
-            path="/usuarios" 
+          {/* MÓDULO USUARIOS (Solo Administrador rol 4) */}
+          <Route
+            path="/usuarios"
             element={
               <ProtectedRoute allowedRoles={[4]}>
                 <UsuariosList />
               </ProtectedRoute>
-            } 
+            }
           />
-          <Route 
-            path="/usuarios/nuevo" 
+          <Route
+            path="/usuarios/nuevo"
             element={
               <ProtectedRoute allowedRoles={[4]}>
                 <UsuarioForm />
               </ProtectedRoute>
-            } 
+            }
           />
-          <Route 
-            path="/usuarios/editar/:id" 
+          <Route
+            path="/usuarios/editar/:id"
             element={
               <ProtectedRoute allowedRoles={[4]}>
                 <UsuarioEdit />
               </ProtectedRoute>
-            } 
+            }
           />
 
           {/* Fallback para cualquier otra ruta inexistente */}
-          <Route path="*" element={<Navigate to="/vehiculos" replace />} />
+          <Route path="*" element={<Navigate to="/home" replace />} />
         </Routes>
       </Layout>
     </BrowserRouter>

@@ -3,28 +3,35 @@ import api from "../api/axiosConfig";
 
 const useAuthStore = create((set) => ({
   user: null,
-  token: null,
+  isAuthenticated: false,
+
   login: async (email, password) => {
     try {
-      const response = await api.post("/auth/login", { email, password });
-      localStorage.setItem("token", response.data.token);
-      set({ user: { rolId: response.data.rolId }, token: response.data.token });
+      const res = await api.post("/Auth/login", { email, password });
+      const { token, rolId } = res.data;
+
+      localStorage.setItem("token", token);
+      set({ user: { email, rolId }, isAuthenticated: true });
       return true;
-    } catch {
+    } catch (err) {
+      console.error("Error en login:", err);
       return false;
     }
   },
-  register: async (data) => {
+
+  register: async (form) => {
     try {
-      await api.post("/auth/register", data);
+      await api.post("/Auth/register", form);
       return true;
-    } catch {
+    } catch (err) {
+      console.error("Error en registro:", err);
       return false;
     }
   },
+
   logout: () => {
     localStorage.removeItem("token");
-    set({ user: null, token: null });
+    set({ user: null, isAuthenticated: false });
   },
 }));
 

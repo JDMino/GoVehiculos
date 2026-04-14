@@ -11,7 +11,7 @@ export default function Login() {
   const [loading, setLoading] = useState(false);
   const [showPassword, setShowPassword] = useState(false);
 
-  const handleSubmit = async (e) => {
+ /* const handleSubmit = async (e) => {
     e.preventDefault();
     setLoading(true);
     const success = await login(email, password);
@@ -22,7 +22,26 @@ export default function Login() {
     } else {
       alert("Credenciales inválidas. Por favor, revisa tu email y contraseña.");
     }
-  };
+  };*/
+
+  const handleSubmit = async (e) => {
+  e.preventDefault();
+  setLoading(true);
+  const success = await login(email, password);
+  setLoading(false);
+
+  if (success) {
+    const { rolId } = useAuthStore.getState().user;
+    if (rolId === 1 || rolId === 2) {
+      navigate("/home");
+    } else if (rolId === 3 || rolId === 4) {
+      navigate("/dashboard");
+    }
+  } else {
+    alert("Credenciales inválidas. Por favor, revisa tu email y contraseña.");
+  }
+};
+
 
   return (
     <div className="min-h-screen w-full flex">
