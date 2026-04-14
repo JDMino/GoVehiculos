@@ -79,7 +79,7 @@ export default function UsuariosList() {
                 <Users className="h-6 w-6 text-white" />
               </div>
               <div>
-                <h1 className="text-2xl font-bold text-slate-900 tracking-tight">Directorio de Usuarios</h1>
+                <h1 className="text-2xl font-bold text-slate-900 tracking-tight">Gestion de Usuarios</h1>
                 <p className="text-slate-500 text-sm">Gestiona el personal, socios y clientes del sistema</p>
               </div>
             </div>

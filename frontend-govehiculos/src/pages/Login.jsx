@@ -10,7 +10,7 @@ export default function Login() {
   const [password, setPassword] = useState("");
   const [loading, setLoading] = useState(false);
   const [showPassword, setShowPassword] = useState(false);
-  const [errorMessage, setErrorMessage] = useState(""); // 👈 nuevo estado para errores
+  const [errorMessage, setErrorMessage] = useState(""); 
 
   const handleSubmit = async (e) => {
     e.preventDefault();
@@ -28,7 +28,6 @@ export default function Login() {
         navigate("/dashboard");
       }
     } else {
-      // 👇 mostramos banner en vez de alert
       setErrorMessage("Credenciales inválidas o cuenta inactiva. Contacta al administrador.");
     }
   };
@@ -58,7 +57,7 @@ export default function Login() {
               Accede a la mejor selección de vehículos con la confianza y seguridad que mereces.
             </p>
           </div>
-          <p className="text-sm text-slate-500">2024 GoVehiculos. Todos los derechos reservados.</p>
+          <p className="text-sm text-slate-500">2026 GoVehiculos. Todos los derechos reservados.</p>
         </div>
       </div>
 

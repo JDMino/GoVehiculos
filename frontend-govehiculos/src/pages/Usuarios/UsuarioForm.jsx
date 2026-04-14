@@ -62,7 +62,7 @@ export default function UsuarioForm() {
     {
       id: 3,
       name: "Empleado",
-      description: "Gestiona reservas y atencion al cliente",
+      description: "Gestiona mantenimiento",
       color: "blue",
     },
     {
@@ -208,7 +208,7 @@ export default function UsuarioForm() {
                     name="password"
                     value={form.password}
                     onChange={handleChange}
-                    placeholder="Minimo 8 caracteres"
+                    placeholder="Minimo 4 caracteres"
                     className="w-full pl-12 pr-12 py-3 bg-slate-50 border border-slate-200 rounded-xl focus:ring-2 focus:ring-slate-900 focus:border-transparent outline-none transition-all placeholder:text-slate-400"
                     required
                   />

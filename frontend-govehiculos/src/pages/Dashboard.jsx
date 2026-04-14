@@ -166,7 +166,7 @@ export default function Dashboard() {
                   <Users className="h-6 w-6 text-green-600" />
                 </div>
                 <h3 className="text-lg font-bold text-gray-900">
-                  Directorio de Usuarios
+                  Gestion de Usuarios
                 </h3>
               </div>
               <p className="text-gray-600 text-sm mb-6 flex-grow">
@@ -205,7 +205,7 @@ export default function Dashboard() {
               </div>
               <p className="text-gray-500 text-sm mb-6 flex-grow opacity-70">
                 Genera órdenes de mantenimiento, asigna mecánicos y devuelve
-                vehículos a la disponibilidad. (Etapas 4, 5 y 6).
+                vehículos a la disponibilidad.
               </p>
               <button
                 disabled

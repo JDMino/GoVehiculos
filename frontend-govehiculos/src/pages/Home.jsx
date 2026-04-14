@@ -18,7 +18,7 @@ export default function Home() {
           to="/usuarios"
           className="bg-green-600 text-white px-4 py-2 rounded"
         >
-          Directorio de Usuarios
+          Gestion de Usuarios
         </Link>
       </div>
     </div>
