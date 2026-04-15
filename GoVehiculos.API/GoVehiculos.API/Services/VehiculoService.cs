@@ -39,7 +39,10 @@ namespace GoVehiculos.API.Services
                 UbicacionActual = v.UbicacionActual,
                 MantenimientoACargoDe = v.MantenimientoACargoDe,
                 ImagenUrl = v.ImagenUrl,
-                Activo = v.Activo
+                Activo = v.Activo,
+                // ✅ añadimos
+                SeguroVigente = v.SeguroVigente,
+                DocumentacionVigente = v.DocumentacionVigente
             }).ToListAsync();
         }
 
@@ -48,23 +51,27 @@ namespace GoVehiculos.API.Services
             var v = await _context.Vehiculos.FindAsync(id);
             if (v == null) return null;
 
-            return new VehiculoResponseDTO
-            {
-                IdVehiculo = v.IdVehiculo,
-                Tipo = v.Tipo,
-                Marca = v.Marca,
-                Modelo = v.Modelo,
-                Anio = v.Anio,
-                Patente = v.Patente,
-                Estado = v.Estado,
-                EstadoMecanico = v.EstadoMecanico,
-                Kilometraje = v.Kilometraje,
-                PrecioPorDia = v.PrecioPorDia,
-                UbicacionActual = v.UbicacionActual,
-                MantenimientoACargoDe = v.MantenimientoACargoDe,
-                ImagenUrl = v.ImagenUrl,
-                Activo = v.Activo
-            };
+        return new VehiculoResponseDTO
+        {
+            IdVehiculo = v.IdVehiculo,
+            Tipo = v.Tipo,
+            Marca = v.Marca,
+            Modelo = v.Modelo,
+            Anio = v.Anio,
+            Patente = v.Patente,
+            Estado = v.Estado,
+            EstadoMecanico = v.EstadoMecanico,
+            Kilometraje = v.Kilometraje,
+            PrecioPorDia = v.PrecioPorDia,
+            UbicacionActual = v.UbicacionActual,
+            MantenimientoACargoDe = v.MantenimientoACargoDe,
+            ImagenUrl = v.ImagenUrl,
+            Activo = v.Activo,
+            // ✅ añadimos
+            SeguroVigente = v.SeguroVigente,
+            DocumentacionVigente = v.DocumentacionVigente
+        };
+
         }
 
         public async Task<VehiculoResponseDTO> CreateAsync(VehiculoCreateDTO dto)
@@ -106,13 +113,17 @@ namespace GoVehiculos.API.Services
             v.Kilometraje = dto.Kilometraje;
             v.PrecioPorDia = dto.PrecioPorDia;
             v.UbicacionActual = dto.UbicacionActual;
+
+            // ✅ ahora se guardan correctamente
             v.SeguroVigente = dto.SeguroVigente;
             v.DocumentacionVigente = dto.DocumentacionVigente;
+
             v.Activo = dto.Activo;
 
             await _context.SaveChangesAsync();
             return true;
         }
+
 
         public async Task<bool> DeleteAsync(int id)
         {

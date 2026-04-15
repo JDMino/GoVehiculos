@@ -16,5 +16,9 @@
         public string MantenimientoACargoDe { get; set; } = string.Empty;
         public string? ImagenUrl { get; set; }
         public bool Activo { get; set; }
+
+        // ✅ añadimos estos dos campos
+        public bool SeguroVigente { get; set; }
+        public bool DocumentacionVigente { get; set; }
     }
 }
