@@ -1,23 +1,24 @@
 import { useEffect, useState } from "react";
 import api from "../../api/axiosConfig";
 import { Link } from "react-router-dom";
-import { 
-  UserPlus, 
-  Search, 
-  Edit, 
-  Trash2, 
-  Shield, 
-  User as UserIcon, 
-  CheckCircle, 
-  XCircle, 
+import {
+  UserPlus,
+  Search,
+  Edit,
+  Trash2,
+  Shield,
+  User as UserIcon,
+  CheckCircle,
+  XCircle,
   Lock,
   Users,
   Filter,
   MoreHorizontal,
   ChevronDown,
   Mail,
-  ArrowUpDown
+  ArrowUpDown,
 } from "lucide-react";
+
 
 export default function UsuariosList() {
   const [usuarios, setUsuarios] = useState([]);
@@ -25,11 +26,19 @@ export default function UsuariosList() {
   const [filterRole, setFilterRole] = useState("all");
   const [filterStatus, setFilterStatus] = useState("all");
 
+
+  const [modalBaja, setModalBaja] = useState({
+    isOpen: false,
+    idUsuario: null,
+  });
+
+
   useEffect(() => {
     api.get("/usuarios").then((res) => setUsuarios(res.data));
   }, []);
 
-  const handleDelete = async (id) => {
+
+  /*const handleDelete = async (id) => {
     if (confirm("¿Deseas dar de baja este usuario? El registro permanecerá pero figurará como inactivo.")) {
       try {
         await api.delete(`/usuarios/${id}`);
@@ -39,34 +48,71 @@ export default function UsuariosList() {
         alert("Error al procesar la baja.");
       }
     }
+  };*/
+
+
+  // Abre el modal guardando el ID
+  const pedirConfirmacion = (id) => {
+    setModalBaja({ isOpen: true, idUsuario: id });
   };
 
-  const filteredUsuarios = usuarios.filter(u => {
-    const matchesSearch = `${u.nombre} ${u.apellido}`.toLowerCase().includes(searchTerm.toLowerCase()) ||
+
+  // Cierra el modal sin hacer nada
+  const cancelarBaja = () => {
+    setModalBaja({ isOpen: false, idUsuario: null });
+  };
+
+
+  // Ejecuta la baja lógica en el backend y actualiza el estado local
+  const confirmarBaja = async () => {
+    const id = modalBaja.idUsuario;
+    try {
+      await api.delete(`/usuarios/${id}`);
+      // Actualizamos localmente para que cambie el badge de "Activo" a "Inactivo"
+      setUsuarios(
+        usuarios.map((u) => (u.idUsuario === id ? { ...u, activo: false } : u)),
+      );
+      setModalBaja({ isOpen: false, idUsuario: null });
+    } catch (error) {
+      console.error("Error al procesar la baja:", error);
+      alert("No se pudo completar la operación.");
+    }
+  };
+
+
+  const filteredUsuarios = usuarios.filter((u) => {
+    const matchesSearch =
+      `${u.nombre} ${u.apellido}`
+        .toLowerCase()
+        .includes(searchTerm.toLowerCase()) ||
       u.email.toLowerCase().includes(searchTerm.toLowerCase());
     const matchesRole = filterRole === "all" || u.rol === filterRole;
-    const matchesStatus = filterStatus === "all" || 
-      (filterStatus === "active" && u.activo) || 
+    const matchesStatus =
+      filterStatus === "all" ||
+      (filterStatus === "active" && u.activo) ||
       (filterStatus === "inactive" && !u.activo);
     return matchesSearch && matchesRole && matchesStatus;
   });
 
+
   const stats = {
     total: usuarios.length,
-    active: usuarios.filter(u => u.activo).length,
-    admins: usuarios.filter(u => u.rol === 'administrador').length,
-    blocked: usuarios.filter(u => u.bloqueado).length
+    active: usuarios.filter((u) => u.activo).length,
+    admins: usuarios.filter((u) => u.rol === "administrador").length,
+    blocked: usuarios.filter((u) => u.bloqueado).length,
   };
+
 
   const getRoleBadgeStyles = (rol) => {
     const styles = {
-      administrador: 'bg-violet-50 text-violet-700 ring-violet-600/20',
-      empleado: 'bg-blue-50 text-blue-700 ring-blue-600/20',
-      socio: 'bg-amber-50 text-amber-700 ring-amber-600/20',
-      cliente: 'bg-slate-50 text-slate-700 ring-slate-600/20'
+      administrador: "bg-violet-50 text-violet-700 ring-violet-600/20",
+      empleado: "bg-blue-50 text-blue-700 ring-blue-600/20",
+      socio: "bg-amber-50 text-amber-700 ring-amber-600/20",
+      cliente: "bg-slate-50 text-slate-700 ring-slate-600/20",
     };
     return styles[rol] || styles.cliente;
   };
+
 
   return (
     <div className="min-h-screen bg-slate-50">
@@ -79,8 +125,12 @@ export default function UsuariosList() {
                 <Users className="h-6 w-6 text-white" />
               </div>
               <div>
-                <h1 className="text-2xl font-bold text-slate-900 tracking-tight">Gestion de Usuarios</h1>
-                <p className="text-slate-500 text-sm">Gestiona el personal, socios y clientes del sistema</p>
+                <h1 className="text-2xl font-bold text-slate-900 tracking-tight">
+                  Gestion de Usuarios
+                </h1>
+                <p className="text-slate-500 text-sm">
+                  Gestiona el personal, socios y clientes del sistema
+                </p>
               </div>
             </div>
             <Link
@@ -94,14 +144,19 @@ export default function UsuariosList() {
         </div>
       </div>
 
+
       <div className="max-w-7xl mx-auto px-6 py-8">
         {/* Stats Cards */}
         <div className="grid grid-cols-2 lg:grid-cols-4 gap-4 mb-8">
           <div className="bg-white rounded-2xl p-5 border border-slate-200 hover:border-slate-300 transition-colors">
             <div className="flex items-center justify-between">
               <div>
-                <p className="text-sm font-medium text-slate-500">Total Usuarios</p>
-                <p className="text-3xl font-bold text-slate-900 mt-1">{stats.total}</p>
+                <p className="text-sm font-medium text-slate-500">
+                  Total Usuarios
+                </p>
+                <p className="text-3xl font-bold text-slate-900 mt-1">
+                  {stats.total}
+                </p>
               </div>
               <div className="h-12 w-12 rounded-xl bg-slate-100 flex items-center justify-center">
                 <Users className="h-6 w-6 text-slate-600" />
@@ -112,7 +167,9 @@ export default function UsuariosList() {
             <div className="flex items-center justify-between">
               <div>
                 <p className="text-sm font-medium text-slate-500">Activos</p>
-                <p className="text-3xl font-bold text-emerald-600 mt-1">{stats.active}</p>
+                <p className="text-3xl font-bold text-emerald-600 mt-1">
+                  {stats.active}
+                </p>
               </div>
               <div className="h-12 w-12 rounded-xl bg-emerald-50 flex items-center justify-center">
                 <CheckCircle className="h-6 w-6 text-emerald-600" />
@@ -122,8 +179,12 @@ export default function UsuariosList() {
           <div className="bg-white rounded-2xl p-5 border border-slate-200 hover:border-violet-200 transition-colors">
             <div className="flex items-center justify-between">
               <div>
-                <p className="text-sm font-medium text-slate-500">Administradores</p>
-                <p className="text-3xl font-bold text-violet-600 mt-1">{stats.admins}</p>
+                <p className="text-sm font-medium text-slate-500">
+                  Administradores
+                </p>
+                <p className="text-3xl font-bold text-violet-600 mt-1">
+                  {stats.admins}
+                </p>
               </div>
               <div className="h-12 w-12 rounded-xl bg-violet-50 flex items-center justify-center">
                 <Shield className="h-6 w-6 text-violet-600" />
@@ -134,7 +195,9 @@ export default function UsuariosList() {
             <div className="flex items-center justify-between">
               <div>
                 <p className="text-sm font-medium text-slate-500">Bloqueados</p>
-                <p className="text-3xl font-bold text-amber-600 mt-1">{stats.blocked}</p>
+                <p className="text-3xl font-bold text-amber-600 mt-1">
+                  {stats.blocked}
+                </p>
               </div>
               <div className="h-12 w-12 rounded-xl bg-amber-50 flex items-center justify-center">
                 <Lock className="h-6 w-6 text-amber-600" />
@@ -142,6 +205,7 @@ export default function UsuariosList() {
             </div>
           </div>
         </div>
+
 
         {/* Search and Filters */}
         <div className="bg-white rounded-2xl border border-slate-200 p-4 mb-6">
@@ -187,6 +251,7 @@ export default function UsuariosList() {
           </div>
         </div>
 
+
         {/* Users Table */}
         <div className="bg-white rounded-2xl border border-slate-200 overflow-hidden">
           <div className="overflow-x-auto">
@@ -200,30 +265,46 @@ export default function UsuariosList() {
                     </button>
                   </th>
                   <th className="px-6 py-4 text-left">
-                    <span className="text-xs font-semibold text-slate-500 uppercase tracking-wider">Contacto</span>
+                    <span className="text-xs font-semibold text-slate-500 uppercase tracking-wider">
+                      Contacto
+                    </span>
                   </th>
                   <th className="px-6 py-4 text-center">
-                    <span className="text-xs font-semibold text-slate-500 uppercase tracking-wider">Rol</span>
+                    <span className="text-xs font-semibold text-slate-500 uppercase tracking-wider">
+                      Rol
+                    </span>
                   </th>
                   <th className="px-6 py-4 text-center">
-                    <span className="text-xs font-semibold text-slate-500 uppercase tracking-wider">Estado</span>
+                    <span className="text-xs font-semibold text-slate-500 uppercase tracking-wider">
+                      Estado
+                    </span>
                   </th>
                   <th className="px-6 py-4 text-right">
-                    <span className="text-xs font-semibold text-slate-500 uppercase tracking-wider">Acciones</span>
+                    <span className="text-xs font-semibold text-slate-500 uppercase tracking-wider">
+                      Acciones
+                    </span>
                   </th>
                 </tr>
               </thead>
               <tbody className="divide-y divide-slate-100">
                 {filteredUsuarios.map((u) => (
-                  <tr key={u.idUsuario} className="hover:bg-slate-50/50 transition-colors group">
+                  <tr
+                    key={u.idUsuario}
+                    className="hover:bg-slate-50/50 transition-colors group"
+                  >
                     <td className="px-6 py-4">
                       <div className="flex items-center gap-4">
                         <div className="h-11 w-11 rounded-xl bg-gradient-to-br from-slate-700 to-slate-800 flex items-center justify-center text-white font-bold text-sm shadow-sm">
-                          {u.nombre.charAt(0)}{u.apellido.charAt(0)}
+                          {u.nombre.charAt(0)}
+                          {u.apellido.charAt(0)}
                         </div>
                         <div>
-                          <div className="font-semibold text-slate-900">{u.nombre} {u.apellido}</div>
-                          <div className="text-xs text-slate-400 font-mono">ID #{u.idUsuario}</div>
+                          <div className="font-semibold text-slate-900">
+                            {u.nombre} {u.apellido}
+                          </div>
+                          <div className="text-xs text-slate-400 font-mono">
+                            ID #{u.idUsuario}
+                          </div>
                         </div>
                       </div>
                     </td>
@@ -234,8 +315,12 @@ export default function UsuariosList() {
                       </div>
                     </td>
                     <td className="px-6 py-4 text-center">
-                      <span className={`inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-semibold ring-1 ring-inset ${getRoleBadgeStyles(u.rol)}`}>
-                        {u.rol === 'administrador' && <Shield className="h-3.5 w-3.5" />}
+                      <span
+                        className={`inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-semibold ring-1 ring-inset ${getRoleBadgeStyles(u.rol)}`}
+                      >
+                        {u.rol === "administrador" && (
+                          <Shield className="h-3.5 w-3.5" />
+                        )}
                         {u.rol.charAt(0).toUpperCase() + u.rol.slice(1)}
                       </span>
                     </td>
@@ -253,7 +338,10 @@ export default function UsuariosList() {
                           </span>
                         )}
                         {u.bloqueado && (
-                          <span className="inline-flex items-center p-1.5 rounded-lg bg-amber-50 text-amber-600 ring-1 ring-inset ring-amber-600/20" title="Cuenta bloqueada">
+                          <span
+                            className="inline-flex items-center p-1.5 rounded-lg bg-amber-50 text-amber-600 ring-1 ring-inset ring-amber-600/20"
+                            title="Cuenta bloqueada"
+                          >
                             <Lock className="h-3.5 w-3.5" />
                           </span>
                         )}
@@ -269,8 +357,8 @@ export default function UsuariosList() {
                           <Edit className="h-4.5 w-4.5" />
                         </Link>
                         <button
-                          onClick={() => handleDelete(u.idUsuario)}
-                          className="p-2.5 text-slate-400 hover:text-red-600 hover:bg-red-50 rounded-xl transition-all"
+                          onClick={() => pedirConfirmacion(u.idUsuario)}
+                          className="p-2 text-slate-400 hover:text-red-600 hover:bg-red-50 rounded-xl transition-all"
                           title="Dar de baja"
                         >
                           <Trash2 className="h-4.5 w-4.5" />
@@ -282,27 +370,81 @@ export default function UsuariosList() {
               </tbody>
             </table>
           </div>
-          
+
+
           {filteredUsuarios.length === 0 && (
             <div className="text-center py-16">
               <div className="h-16 w-16 rounded-2xl bg-slate-100 flex items-center justify-center mx-auto mb-4">
                 <UserIcon className="h-8 w-8 text-slate-400" />
               </div>
-              <p className="text-slate-900 font-semibold mb-1">No se encontraron usuarios</p>
-              <p className="text-slate-500 text-sm">Intenta ajustar los filtros de busqueda</p>
+              <p className="text-slate-900 font-semibold mb-1">
+                No se encontraron usuarios
+              </p>
+              <p className="text-slate-500 text-sm">
+                Intenta ajustar los filtros de busqueda
+              </p>
             </div>
           )}
-          
+
+
           {/* Table Footer */}
           {filteredUsuarios.length > 0 && (
             <div className="px-6 py-4 bg-slate-50 border-t border-slate-100 flex items-center justify-between">
               <p className="text-sm text-slate-500">
-                Mostrando <span className="font-semibold text-slate-700">{filteredUsuarios.length}</span> de <span className="font-semibold text-slate-700">{usuarios.length}</span> usuarios
+                Mostrando{" "}
+                <span className="font-semibold text-slate-700">
+                  {filteredUsuarios.length}
+                </span>{" "}
+                de{" "}
+                <span className="font-semibold text-slate-700">
+                  {usuarios.length}
+                </span>{" "}
+                usuarios
               </p>
             </div>
           )}
         </div>
       </div>
+
+
+      {/* MODAL DE CONFIRMACIÓN PARA USUARIOS */}
+      {modalBaja.isOpen && (
+        <div className="fixed inset-0 z-[100] flex items-center justify-center p-4 bg-slate-900/40 backdrop-blur-sm animate-in fade-in duration-200">
+          <div className="bg-white rounded-2xl p-6 max-w-md w-full shadow-2xl border border-slate-100 animate-in zoom-in-95 duration-200">
+            <div className="flex items-start gap-4 mb-5">
+              <div className="bg-red-50 p-3 rounded-xl shrink-0">
+                <Shield className="h-6 w-6 text-red-600" />
+              </div>
+              <div>
+                <h3 className="text-lg font-bold text-slate-900">
+                  ¿Inhabilitar este usuario?
+                </h3>
+                <p className="text-sm text-slate-500 mt-2 leading-relaxed">
+                  El acceso al sistema será revocado de inmediato. El registro
+                  permanecerá en la base de datos para historial de auditoría,
+                  pero figurará como <strong>Inactivo</strong>.
+                </p>
+              </div>
+            </div>
+
+
+            <div className="flex justify-end gap-3 mt-6 pt-4 border-t border-slate-100">
+              <button
+                onClick={cancelarBaja}
+                className="px-5 py-2.5 text-sm font-semibold text-slate-600 hover:bg-slate-100 rounded-xl transition-colors"
+              >
+                Mantener activo
+              </button>
+              <button
+                onClick={confirmarBaja}
+                className="px-5 py-2.5 text-sm font-semibold text-white bg-red-600 hover:bg-red-700 rounded-xl shadow-lg shadow-red-100 transition-all active:scale-95"
+              >
+                Confirmar baja
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 }

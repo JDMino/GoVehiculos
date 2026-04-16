@@ -15,7 +15,7 @@ namespace GoVehiculos.API.Services
             _context = context;
         }
 
-        public async Task<IEnumerable<UsuarioResponseDTO>> GetAllAsync()
+       public async Task<IEnumerable<UsuarioResponseDTO>> GetAllAsync()
         {
             return await _context.Usuarios
                 .Include(u => u.Rol)
@@ -27,6 +27,7 @@ namespace GoVehiculos.API.Services
                     Email = u.Email,
                     Dni = u.Dni,
                     Rol = u.Rol != null ? u.Rol.Nombre : "",
+                    RolId = u.RolId,
                     Activo = u.Activo,
                     Bloqueado = u.Bloqueado,
                     FechaRegistro = u.FechaRegistro
@@ -48,6 +49,7 @@ namespace GoVehiculos.API.Services
                 Email = u.Email,
                 Dni = u.Dni,
                 Rol = u.Rol?.Nombre ?? "",
+                RolId = u.RolId,
                 Activo = u.Activo,
                 Bloqueado = u.Bloqueado,
                 FechaRegistro = u.FechaRegistro
@@ -73,7 +75,7 @@ namespace GoVehiculos.API.Services
             return await GetByIdAsync(usuario.IdUsuario) ?? new UsuarioResponseDTO();
         }
 
-        public async Task<bool> UpdateAsync(int id, UsuarioUpdateDTO dto)
+         public async Task<bool> UpdateAsync(int id, UsuarioUpdateDTO dto)
         {
             var usuario = await _context.Usuarios.FindAsync(id);
             if (usuario == null) return false;
@@ -84,10 +86,12 @@ namespace GoVehiculos.API.Services
             usuario.Direccion = dto.Direccion;
             usuario.Bloqueado = dto.Bloqueado;
             usuario.Activo = dto.Activo;
+            usuario.RolId = dto.RolId;
 
             await _context.SaveChangesAsync();
             return true;
         }
+
 
         public async Task<bool> DeleteAsync(int id)
         {

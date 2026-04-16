@@ -8,5 +8,7 @@
         public string? Direccion { get; set; }
         public bool Bloqueado { get; set; }
         public bool Activo { get; set; }
+        public int RolId { get; set; }
     }
+
 }

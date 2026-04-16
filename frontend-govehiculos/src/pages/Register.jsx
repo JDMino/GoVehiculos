@@ -25,7 +25,7 @@ export default function Register() {
     email: "",
     dni: "",
     password: "",
-    rolId: 1, // ✅ siempre por defecto Cliente
+    rolId: 1,
   });
 
   const handleChange = (e) => {
