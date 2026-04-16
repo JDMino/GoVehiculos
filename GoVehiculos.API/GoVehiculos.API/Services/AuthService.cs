@@ -77,12 +77,13 @@ namespace GoVehiculos.API.Services
                 Email = request.Email,
                 Dni = request.Dni,
                 PasswordHash = BCrypt.Net.BCrypt.HashPassword(request.Password),
-                RolId = request.RolId
+                RolId = 1 
             };
 
             _context.Usuarios.Add(user);
             await _context.SaveChangesAsync();
             return user;
         }
+
     }
 }

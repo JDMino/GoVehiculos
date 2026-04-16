@@ -10,7 +10,6 @@ import {
   Car,
   Eye,
   EyeOff,
-  ChevronDown,
   Check,
 } from "lucide-react";
 import useAuthStore from "../context/AuthStore";
@@ -26,15 +25,8 @@ export default function Register() {
     email: "",
     dni: "",
     password: "",
-    rolId: 1,
+    rolId: 1, // ✅ siempre por defecto Cliente
   });
-
-  const roles = [
-    { id: 1, name: "Cliente" },
-    { id: 2, name: "Socio" },
-    { id: 3, name: "Empleado" },
-    { id: 4, name: "Administrador" },
-  ];
 
   const handleChange = (e) => {
     setForm({ ...form, [e.target.name]: e.target.value });
@@ -43,6 +35,7 @@ export default function Register() {
   const handleSubmit = async (e) => {
     e.preventDefault();
     setLoading(true);
+
     const success = await register(form);
     setLoading(false);
 
@@ -79,16 +72,16 @@ export default function Register() {
 
           <div className="space-y-6 max-w-sm">
             <h1 className="text-4xl font-bold leading-tight">
-              Unete a nuestra comunidad
+              Únete a nuestra comunidad
             </h1>
             <p className="text-lg text-slate-300 leading-relaxed">
               Crea tu cuenta y accede a beneficios exclusivos en alquiler y
-              compra de vehiculos.
+              compra de vehículos.
             </p>
 
             <div className="space-y-4 pt-4">
               {[
-                "Reservas rapidas y seguras",
+                "Reservas rápidas y seguras",
                 "Descuentos exclusivos para miembros",
                 "Soporte 24/7 personalizado",
               ].map((benefit, i) => (
@@ -111,7 +104,7 @@ export default function Register() {
       {/* Panel derecho - Formulario */}
       <div className="w-full lg:w-3/5 flex items-center justify-center p-6 sm:p-12 bg-slate-50">
         <div className="w-full max-w-xl space-y-8">
-          {/* Header con navegacion */}
+          {/* Header con navegación */}
           <div className="flex items-center justify-between">
             <Link
               to="/login"
@@ -177,7 +170,7 @@ export default function Register() {
                   name="apellido"
                   required
                   className="w-full px-4 py-3.5 bg-white border border-slate-200 rounded-xl text-slate-900 placeholder:text-slate-400 focus:outline-none focus:ring-2 focus:ring-slate-900 focus:border-transparent transition-all duration-200"
-                  placeholder="Ej: Perez"
+                  placeholder="Ej: Pérez"
                   value={form.apellido}
                   onChange={handleChange}
                 />
@@ -196,7 +189,7 @@ export default function Register() {
                     name="dni"
                     required
                     className="w-full px-4 py-3.5 pl-12 bg-white border border-slate-200 rounded-xl text-slate-900 placeholder:text-slate-400 focus:outline-none focus:ring-2 focus:ring-slate-900 focus:border-transparent transition-all duration-200"
-                    placeholder="Numero de documento"
+                    placeholder="Número de documento"
                     value={form.dni}
                     onChange={handleChange}
                   />
@@ -206,7 +199,7 @@ export default function Register() {
               {/* Email */}
               <div className="space-y-2">
                 <label className="text-sm font-medium text-slate-700">
-                  Correo electronico
+                  Correo electrónico
                 </label>
                 <div className="relative">
                   <div className="absolute inset-y-0 left-0 pl-4 flex items-center pointer-events-none">
@@ -227,7 +220,7 @@ export default function Register() {
               {/* Password */}
               <div className="space-y-2">
                 <label className="text-sm font-medium text-slate-700">
-                  Contrasena
+                  Contraseña
                 </label>
                 <div className="relative">
                   <div className="absolute inset-y-0 left-0 pl-4 flex items-center pointer-events-none">
@@ -238,7 +231,7 @@ export default function Register() {
                     type={showPassword ? "text" : "password"}
                     required
                     className="w-full px-4 py-3.5 pl-12 pr-12 bg-white border border-slate-200 rounded-xl text-slate-900 placeholder:text-slate-400 focus:outline-none focus:ring-2 focus:ring-slate-900 focus:border-transparent transition-all duration-200"
-                    placeholder="Minimo 6 caracteres"
+                    placeholder="Mínimo 6 caracteres"
                     value={form.password}
                     onChange={handleChange}
                   />
@@ -255,106 +248,84 @@ export default function Register() {
                   </button>
                 </div>
               </div>
-
-              {/* Rol */}
-              <div className="space-y-2">
-                <label className="text-sm font-medium text-slate-700">
-                  Tipo de usuario
-                </label>
-                <div className="relative">
-                  <select
-                    name="rolId"
-                    className="w-full px-4 py-3.5 bg-white border border-slate-200 rounded-xl text-slate-900 focus:outline-none focus:ring-2 focus:ring-slate-900 focus:border-transparent transition-all duration-200 appearance-none cursor-pointer"
-                    value={form.rolId}
-                    onChange={handleChange}
-                  >
-                    {roles.map((role) => (
-                      <option key={role.id} value={role.id}>
-                        {role.name}
-                      </option>
-                    ))}
-                  </select>
-                  <div className="absolute inset-y-0 right-0 pr-4 flex items-center pointer-events-none">
-                    <ChevronDown className="h-5 w-5 text-slate-400" />
-                  </div>
-                </div>
               </div>
-            </div>
 
-            {/* Terminos y condiciones */}
-            <div className="flex items-start gap-3">
-              <input
-                type="checkbox"
-                required
-                id="terms"
-                className="mt-1 h-4 w-4 rounded border-slate-300 text-slate-900 focus:ring-slate-900"
-              />
-              <label
-                htmlFor="terms"
-                className="text-sm text-slate-600 leading-relaxed"
+              {/* Términos y condiciones */}
+              <div className="flex items-start gap-3">
+                <input
+                  type="checkbox"
+                  required
+                  id="terms"
+                  className="mt-1 h-4 w-4 rounded border-slate-300 text-slate-900 focus:ring-slate-900"
+                />
+                <label
+                  htmlFor="terms"
+                  className="text-sm text-slate-600 leading-relaxed"
+                >
+                  Acepto los{" "}
+                  <Link
+                    to="/terms"
+                    className="font-medium text-slate-900 hover:underline"
+                  >
+                    Términos y Condiciones
+                  </Link>{" "}
+                  y la{" "}
+                  <Link
+                    to="/privacy"
+                    className="font-medium text-slate-900 hover:underline"
+                  >
+                    Política de Privacidad
+                  </Link>
+                </label>
+              </div>
+
+              <button
+                type="submit"
+                disabled={loading}
+                className="w-full flex items-center justify-center gap-2 py-3.5 px-4 bg-slate-900 hover:bg-slate-800 text-white font-semibold rounded-xl transition-all duration-200 disabled:opacity-70 disabled:cursor-not-allowed shadow-lg shadow-slate-900/20"
               >
-                Acepto los{" "}
+                {loading ? (
+                  <>
+                    <svg className="animate-spin h-5 w-5" viewBox="0 0 24 24">
+                      <circle
+                        className="opacity-25"
+                        cx="12"
+                        cy="12"
+                        r="10"
+                        stroke="currentColor"
+                        strokeWidth="4"
+                        fill="none"
+                      />
+                      <path
+                        className="opacity-75"
+                        fill="currentColor"
+                        d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2
+                        5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3
+                        7.938l3-2.647z"
+                      />
+                    </svg>
+                    <span>Creando cuenta...</span>
+                  </>
+                ) : (
+                  <>
+                    <UserPlus className="h-5 w-5" />
+                    <span>Crear cuenta</span>
+                  </>
+                )}
+              </button>
+              </form>
+
+              <p className="text-center text-slate-600">
+                ¿Ya tienes una cuenta?{" "}
                 <Link
-                  to="/terms"
-                  className="font-medium text-slate-900 hover:underline"
+                  to="/login"
+                  className="font-semibold text-slate-900 hover:underline underline-offset-4"
                 >
-                  Terminos y Condiciones
-                </Link>{" "}
-                y la{" "}
-                <Link
-                  to="/privacy"
-                  className="font-medium text-slate-900 hover:underline"
-                >
-                  Politica de Privacidad
+                  Inicia sesión
                 </Link>
-              </label>
-            </div>
-
-            <button
-              type="submit"
-              disabled={loading}
-              className="w-full flex items-center justify-center gap-2 py-3.5 px-4 bg-slate-900 hover:bg-slate-800 text-white font-semibold rounded-xl transition-all duration-200 disabled:opacity-70 disabled:cursor-not-allowed shadow-lg shadow-slate-900/20"
-            >
-              {loading ? (
-                <>
-                  <svg className="animate-spin h-5 w-5" viewBox="0 0 24 24">
-                    <circle
-                      className="opacity-25"
-                      cx="12"
-                      cy="12"
-                      r="10"
-                      stroke="currentColor"
-                      strokeWidth="4"
-                      fill="none"
-                    />
-                    <path
-                      className="opacity-75"
-                      fill="currentColor"
-                      d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"
-                    />
-                  </svg>
-                  <span>Creando cuenta...</span>
-                </>
-              ) : (
-                <>
-                  <UserPlus className="h-5 w-5" />
-                  <span>Crear cuenta</span>
-                </>
-              )}
-            </button>
-          </form>
-
-          <p className="text-center text-slate-600">
-            Ya tienes una cuenta?{" "}
-            <Link
-              to="/login"
-              className="font-semibold text-slate-900 hover:underline underline-offset-4"
-            >
-              Inicia sesion
-            </Link>
-          </p>
-        </div>
+              </p>
+              </div>
+              </div>
       </div>
-    </div>
   );
 }
