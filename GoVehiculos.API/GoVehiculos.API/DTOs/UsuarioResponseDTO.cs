@@ -12,6 +12,7 @@
         public bool Activo { get; set; }
         public bool Bloqueado { get; set; }
         public DateTime FechaRegistro { get; set; }
-    }
 
+        public int? DireccionId { get; set; }
+    }
 }

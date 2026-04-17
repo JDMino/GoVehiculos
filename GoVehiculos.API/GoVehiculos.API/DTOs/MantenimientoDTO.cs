@@ -1,10 +1,7 @@
-using System.ComponentModel.DataAnnotations;
-
-namespace GoVehiculos.API.Models
+﻿namespace GoVehiculos.API.DTOs
 {
-    public class Mantenimiento
+    public class MantenimientoDTO
     {
-        [Key]
         public int IdMantenimiento { get; set; }
         public int VehiculoId { get; set; }
         public int? EmpleadoId { get; set; }
@@ -16,8 +13,5 @@ namespace GoVehiculos.API.Models
         public DateTime? FechaRealizacion { get; set; }
         public decimal Costo { get; set; } = 0;
         public string RealizadoPor { get; set; } = "empresa";
-
-        public Vehiculo? Vehiculo { get; set; }
-        public Usuario? Empleado { get; set; }
     }
 }

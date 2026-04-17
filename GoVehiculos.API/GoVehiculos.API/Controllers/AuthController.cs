@@ -20,6 +20,7 @@ namespace GoVehiculos.API.Controllers
         {
             var result = await _authService.LoginAsync(request);
             if (result == null) return Unauthorized("Credenciales inválidas");
+            if (!string.IsNullOrEmpty(result.ErrorMessage)) return BadRequest(result.ErrorMessage);
             return Ok(result);
         }
 

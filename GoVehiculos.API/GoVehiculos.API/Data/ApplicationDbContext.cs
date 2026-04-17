@@ -17,6 +17,17 @@ namespace GoVehiculos.API.Data
         public DbSet<Mantenimiento> Mantenimientos { get; set; }
         public DbSet<Notificacion> Notificaciones { get; set; }
 
+        // Nuevos DbSets según normalización
+        public DbSet<Provincia> Provincias { get; set; }
+        public DbSet<Localidad> Localidades { get; set; }
+        public DbSet<Direccion> Direcciones { get; set; }
+        public DbSet<Marca> Marcas { get; set; }
+        public DbSet<Modelo> Modelos { get; set; }
+        public DbSet<Ubicacion> Ubicaciones { get; set; }
+        public DbSet<Incidencia> Incidencias { get; set; }
+        public DbSet<Multa> Multas { get; set; }
+        public DbSet<Penalizacion> Penalizaciones { get; set; }
+
         protected override void OnModelCreating(ModelBuilder modelBuilder)
         {
             base.OnModelCreating(modelBuilder);
@@ -30,6 +41,16 @@ namespace GoVehiculos.API.Data
             modelBuilder.Entity<Mantenimiento>().ToTable("Mantenimiento");
             modelBuilder.Entity<Notificacion>().ToTable("Notificacion");
 
+            modelBuilder.Entity<Provincia>().ToTable("Provincia");
+            modelBuilder.Entity<Localidad>().ToTable("Localidad");
+            modelBuilder.Entity<Direccion>().ToTable("Direccion");
+            modelBuilder.Entity<Marca>().ToTable("Marca");
+            modelBuilder.Entity<Modelo>().ToTable("Modelo");
+            modelBuilder.Entity<Ubicacion>().ToTable("Ubicacion");
+            modelBuilder.Entity<Incidencia>().ToTable("Incidencia");
+            modelBuilder.Entity<Multa>().ToTable("Multa");
+            modelBuilder.Entity<Penalizacion>().ToTable("Penalizacion");
+
             // ============================
             // Claves primarias
             // ============================
@@ -39,129 +60,152 @@ namespace GoVehiculos.API.Data
             modelBuilder.Entity<Mantenimiento>().HasKey(m => m.IdMantenimiento);
             modelBuilder.Entity<Notificacion>().HasKey(n => n.IdNotificacion);
 
+            modelBuilder.Entity<Provincia>().HasKey(p => p.IdProvincia);
+            modelBuilder.Entity<Localidad>().HasKey(l => l.IdLocalidad);
+            modelBuilder.Entity<Direccion>().HasKey(d => d.IdDireccion);
+            modelBuilder.Entity<Marca>().HasKey(ma => ma.IdMarca);
+            modelBuilder.Entity<Modelo>().HasKey(mo => mo.IdModelo);
+            modelBuilder.Entity<Ubicacion>().HasKey(u => u.IdUbicacion);
+            modelBuilder.Entity<Incidencia>().HasKey(i => i.IdIncidencia);
+            modelBuilder.Entity<Multa>().HasKey(mu => mu.IdMulta);
+            modelBuilder.Entity<Penalizacion>().HasKey(p => p.IdPenalizacion);
+
             // ============================
             // Relaciones entre entidades
             // ============================
 
-            // Usuario ? Rol (FK rol_id)
+            // Usuario -> Rol
             modelBuilder.Entity<Usuario>()
                 .HasOne(u => u.Rol)
                 .WithMany()
                 .HasForeignKey(u => u.RolId)
                 .HasConstraintName("FK_Usuario_Rol");
 
-            // Vehiculo ? Usuario (FK socio_id)
+            // Usuario -> Direccion
+            modelBuilder.Entity<Usuario>()
+                .HasOne(u => u.Direccion)
+                .WithMany()
+                .HasForeignKey(u => u.DireccionId)
+                .HasConstraintName("FK_Usuario_Direccion");
+
+            // Localidad -> Provincia
+            modelBuilder.Entity<Localidad>()
+                .HasOne(l => l.Provincia)
+                .WithMany(p => p.Localidades)
+                .HasForeignKey(l => l.ProvinciaId)
+                .HasConstraintName("FK_Localidad_Provincia");
+
+            // Direccion -> Localidad
+            modelBuilder.Entity<Direccion>()
+                .HasOne(d => d.Localidad)
+                .WithMany(l => l.Direcciones)
+                .HasForeignKey(d => d.LocalidadId)
+                .HasConstraintName("FK_Direccion_Localidad");
+
+            // Modelo -> Marca
+            modelBuilder.Entity<Modelo>()
+                .HasOne(m => m.Marca)
+                .WithMany(ma => ma.Modelos)
+                .HasForeignKey(m => m.MarcaId)
+                .HasConstraintName("FK_Modelo_Marca");
+
+            // Vehiculo -> Modelo
+            modelBuilder.Entity<Vehiculo>()
+                .HasOne(v => v.Modelo)
+                .WithMany(m => m.Vehiculos)
+                .HasForeignKey(v => v.ModeloId)
+                .HasConstraintName("FK_Vehiculo_Modelo");
+
+            // Vehiculo -> Ubicacion
+            modelBuilder.Entity<Vehiculo>()
+                .HasOne(v => v.UbicacionActual)
+                .WithMany(u => u.Vehiculos)
+                .HasForeignKey(v => v.UbicacionActualId)
+                .HasConstraintName("FK_Vehiculo_Ubicacion");
+
+            // Vehiculo -> Usuario (Socio)
             modelBuilder.Entity<Vehiculo>()
                 .HasOne<Usuario>()
                 .WithMany()
                 .HasForeignKey(v => v.SocioId)
                 .HasConstraintName("FK_Vehiculo_Socio");
 
-            // Mantenimiento ? Vehiculo (FK vehiculo_id)
+            // Mantenimiento -> Vehiculo
             modelBuilder.Entity<Mantenimiento>()
                 .HasOne<Vehiculo>()
                 .WithMany()
                 .HasForeignKey(m => m.VehiculoId)
                 .HasConstraintName("FK_Mantenimiento_Vehiculo");
 
-            // Mantenimiento ? Usuario (FK empleado_id)
+            // Mantenimiento -> Usuario (Empleado)
             modelBuilder.Entity<Mantenimiento>()
                 .HasOne<Usuario>()
                 .WithMany()
                 .HasForeignKey(m => m.EmpleadoId)
-                .HasConstraintName("FK_Mantenimiento_Empleado");
+                .HasConstraintName("FK_Mantenimiento_Usuario");
 
-            // Notificacion ? Usuario (FK usuario_id)
+            // Notificacion -> Usuario
             modelBuilder.Entity<Notificacion>()
-                .HasOne<Usuario>()
+                .HasOne(n => n.Usuario)
                 .WithMany()
                 .HasForeignKey(n => n.UsuarioId)
                 .HasConstraintName("FK_Notificacion_Usuario");
 
-            // ============================
-            // Mapeo de columnas
-            // ============================
+            // Incidencia -> Usuario
+            modelBuilder.Entity<Incidencia>()
+                .HasOne(i => i.Usuario)
+                .WithMany()
+                .HasForeignKey(i => i.UsuarioId)
+                .HasConstraintName("FK_Incidencia_Usuario");
 
-            // Rol
-            modelBuilder.Entity<Rol>(entity =>
-            {
-                entity.Property(e => e.IdRol).HasColumnName("id_rol");
-                entity.Property(e => e.Nombre).HasColumnName("nombre");
-            });
+            // Incidencia -> Vehiculo
+            modelBuilder.Entity<Incidencia>()
+                .HasOne(i => i.Vehiculo)
+                .WithMany()
+                .HasForeignKey(i => i.VehiculoId)
+                .HasConstraintName("FK_Incidencia_Vehiculo");
 
-            // Usuario
-            modelBuilder.Entity<Usuario>(entity =>
-            {
-                entity.Property(e => e.IdUsuario).HasColumnName("id_usuario");
-                entity.Property(e => e.Nombre).HasColumnName("nombre");
-                entity.Property(e => e.Apellido).HasColumnName("apellido");
-                entity.Property(e => e.Email).HasColumnName("email");
-                entity.Property(e => e.Dni).HasColumnName("dni");
-                entity.Property(e => e.PasswordHash).HasColumnName("password_hash");
-                entity.Property(e => e.Telefono).HasColumnName("telefono");
-                entity.Property(e => e.Direccion).HasColumnName("direccion");
-                entity.Property(e => e.RolId).HasColumnName("rol_id");
-                entity.Property(e => e.Verificado).HasColumnName("verificado");
-                entity.Property(e => e.Bloqueado).HasColumnName("bloqueado");
-                entity.Property(e => e.Activo).HasColumnName("activo");
-                entity.Property(e => e.FechaBaja).HasColumnName("fecha_baja");
-                entity.Property(e => e.FechaRegistro).HasColumnName("fecha_registro");
-            });
+            // Multa -> Incidencia
+            modelBuilder.Entity<Multa>()
+                .HasOne(m => m.Incidencia)
+                .WithMany()
+                .HasForeignKey(m => m.IncidenciaId)
+                .HasConstraintName("FK_Multa_Incidencia");
 
-            // Vehiculo
-            modelBuilder.Entity<Vehiculo>(entity =>
-            {
-                entity.Property(e => e.IdVehiculo).HasColumnName("id_vehiculo");
-                entity.Property(e => e.SocioId).HasColumnName("socio_id");
-                entity.Property(e => e.Tipo).HasColumnName("tipo");
-                entity.Property(e => e.Marca).HasColumnName("marca");
-                entity.Property(e => e.Modelo).HasColumnName("modelo");
-                entity.Property(e => e.Anio).HasColumnName("anio");
-                entity.Property(e => e.Patente).HasColumnName("patente");
-                entity.Property(e => e.Estado).HasColumnName("estado");
-                entity.Property(e => e.EstadoMecanico).HasColumnName("estado_mecanico");
-                entity.Property(e => e.Kilometraje).HasColumnName("kilometraje");
-                entity.Property(e => e.LicenciaRequerida).HasColumnName("licencia_requerida");
-                entity.Property(e => e.PrecioPorDia).HasColumnName("precio_por_dia");
-                entity.Property(e => e.UbicacionActual).HasColumnName("ubicacion_actual");
-                entity.Property(e => e.SeguroVigente).HasColumnName("seguro_vigente");
-                entity.Property(e => e.DocumentacionVigente).HasColumnName("documentacion_vigente");
-                entity.Property(e => e.MantenimientoACargoDe).HasColumnName("mantenimiento_a_cargo_de");
-                entity.Property(e => e.ImagenUrl).HasColumnName("imagen_url");
-                entity.Property(e => e.Activo).HasColumnName("activo");
-                entity.Property(e => e.FechaBaja).HasColumnName("fecha_baja");
-            });
+            // Multa -> Usuario
+            modelBuilder.Entity<Multa>()
+                .HasOne(m => m.Usuario)
+                .WithMany()
+                .HasForeignKey(m => m.UsuarioId)
+                .HasConstraintName("FK_Multa_Usuario");
 
-            // Mantenimiento
-            modelBuilder.Entity<Mantenimiento>(entity =>
-            {
-                entity.Property(e => e.IdMantenimiento).HasColumnName("id_mantenimiento");
-                entity.Property(e => e.VehiculoId).HasColumnName("vehiculo_id");
-                entity.Property(e => e.EmpleadoId).HasColumnName("empleado_id");
-                entity.Property(e => e.Tipo).HasColumnName("tipo");
-                entity.Property(e => e.Descripcion).HasColumnName("descripcion");
-                entity.Property(e => e.Estado).HasColumnName("estado");
-                entity.Property(e => e.Prioridad).HasColumnName("prioridad");
-                entity.Property(e => e.FechaProgramada).HasColumnName("fecha_programada");
-                entity.Property(e => e.FechaRealizacion).HasColumnName("fecha_realizacion");
-                entity.Property(e => e.Costo).HasColumnName("costo");
-                entity.Property(e => e.RealizadoPor).HasColumnName("realizado_por");
-            });
+            // Multa -> Vehiculo
+            modelBuilder.Entity<Multa>()
+                .HasOne(m => m.Vehiculo)
+                .WithMany()
+                .HasForeignKey(m => m.VehiculoId)
+                .HasConstraintName("FK_Multa_Vehiculo");
 
-            // Notificacion
-            modelBuilder.Entity<Notificacion>(entity =>
-            {
-                entity.Property(e => e.IdNotificacion).HasColumnName("id_notificacion");
-                entity.Property(e => e.UsuarioId).HasColumnName("usuario_id");
-                entity.Property(e => e.Tipo).HasColumnName("tipo");
-                entity.Property(e => e.Titulo).HasColumnName("titulo");
-                entity.Property(e => e.Mensaje).HasColumnName("mensaje");
-                entity.Property(e => e.Canal).HasColumnName("canal");
-                entity.Property(e => e.Fecha).HasColumnName("fecha");
-                entity.Property(e => e.Leido).HasColumnName("leido");
-                entity.Property(e => e.EstadoEnvio).HasColumnName("estado_envio");
-                entity.Property(e => e.Prioridad).HasColumnName("prioridad");
-            });
+            // Penalizacion -> Usuario
+            modelBuilder.Entity<Penalizacion>()
+                .HasOne(p => p.Usuario)
+                .WithMany()
+                .HasForeignKey(p => p.UsuarioId)
+                .HasConstraintName("FK_Penalizacion_Usuario");
+
+            // Penalizacion -> Multa
+            modelBuilder.Entity<Penalizacion>()
+                .HasOne(p => p.Multa)
+                .WithMany()
+                .HasForeignKey(p => p.MultaId)
+                .HasConstraintName("FK_Penalizacion_Multa");
+
+            // Penalizacion -> Incidencia
+            modelBuilder.Entity<Penalizacion>()
+                .HasOne(p => p.Incidencia)
+                .WithMany()
+                .HasForeignKey(p => p.IncidenciaId)
+                .HasConstraintName("FK_Penalizacion_Incidencia");
         }
     }
 }

@@ -8,5 +8,6 @@ namespace GoVehiculos.API.DTOs
         public string Dni { get; set; } = string.Empty;
         public string Password { get; set; } = string.Empty;
         public int RolId { get; set; }
+        public int? DireccionId { get; set; }
     }
 }

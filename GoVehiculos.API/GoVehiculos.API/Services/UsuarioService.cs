@@ -2,7 +2,6 @@
 using GoVehiculos.API.DTOs;
 using GoVehiculos.API.Models;
 using Microsoft.EntityFrameworkCore;
-using BCrypt.Net;
 
 namespace GoVehiculos.API.Services
 {
@@ -15,7 +14,7 @@ namespace GoVehiculos.API.Services
             _context = context;
         }
 
-       public async Task<IEnumerable<UsuarioResponseDTO>> GetAllAsync()
+        public async Task<IEnumerable<UsuarioResponseDTO>> GetAllAsync()
         {
             return await _context.Usuarios
                 .Include(u => u.Rol)
@@ -30,15 +29,18 @@ namespace GoVehiculos.API.Services
                     RolId = u.RolId,
                     Activo = u.Activo,
                     Bloqueado = u.Bloqueado,
-                    FechaRegistro = u.FechaRegistro
+                    FechaRegistro = u.FechaRegistro,
+                    DireccionId = u.DireccionId
                 })
                 .ToListAsync();
         }
 
         public async Task<UsuarioResponseDTO?> GetByIdAsync(int id)
         {
-            var u = await _context.Usuarios.Include(r => r.Rol)
+            var u = await _context.Usuarios
+                .Include(r => r.Rol)
                 .FirstOrDefaultAsync(x => x.IdUsuario == id);
+
             if (u == null) return null;
 
             return new UsuarioResponseDTO
@@ -52,7 +54,8 @@ namespace GoVehiculos.API.Services
                 RolId = u.RolId,
                 Activo = u.Activo,
                 Bloqueado = u.Bloqueado,
-                FechaRegistro = u.FechaRegistro
+                FechaRegistro = u.FechaRegistro,
+                DireccionId = u.DireccionId
             };
         }
 
@@ -66,6 +69,7 @@ namespace GoVehiculos.API.Services
                 Dni = dto.Dni,
                 PasswordHash = BCrypt.Net.BCrypt.HashPassword(dto.Password),
                 RolId = dto.RolId,
+                DireccionId = dto.DireccionId,
                 FechaRegistro = DateTime.Now
             };
 
@@ -75,7 +79,7 @@ namespace GoVehiculos.API.Services
             return await GetByIdAsync(usuario.IdUsuario) ?? new UsuarioResponseDTO();
         }
 
-         public async Task<bool> UpdateAsync(int id, UsuarioUpdateDTO dto)
+        public async Task<bool> UpdateAsync(int id, UsuarioUpdateDTO dto)
         {
             var usuario = await _context.Usuarios.FindAsync(id);
             if (usuario == null) return false;
@@ -83,15 +87,14 @@ namespace GoVehiculos.API.Services
             usuario.Nombre = dto.Nombre;
             usuario.Apellido = dto.Apellido;
             usuario.Telefono = dto.Telefono;
-            usuario.Direccion = dto.Direccion;
             usuario.Bloqueado = dto.Bloqueado;
             usuario.Activo = dto.Activo;
             usuario.RolId = dto.RolId;
+            usuario.DireccionId = dto.DireccionId;
 
             await _context.SaveChangesAsync();
             return true;
         }
-
 
         public async Task<bool> DeleteAsync(int id)
         {

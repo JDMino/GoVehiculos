@@ -16,62 +16,76 @@ namespace GoVehiculos.API.Services
 
         public async Task<IEnumerable<VehiculoResponseDTO>> GetAllAsync(string? estado = null, string? marca = null)
         {
-            var query = _context.Vehiculos.AsQueryable();
+            var query = _context.Vehiculos
+                .Include(v => v.Modelo)
+                    .ThenInclude(m => m.Marca)
+                .Include(v => v.UbicacionActual)
+                .AsQueryable();
 
             if (!string.IsNullOrEmpty(estado))
                 query = query.Where(v => v.Estado == estado);
 
             if (!string.IsNullOrEmpty(marca))
-                query = query.Where(v => v.Marca.Contains(marca));
+                query = query.Where(v => v.Modelo.Marca.Nombre.Contains(marca));
 
             return await query.Select(v => new VehiculoResponseDTO
             {
                 IdVehiculo = v.IdVehiculo,
                 Tipo = v.Tipo,
-                Marca = v.Marca,
-                Modelo = v.Modelo,
                 Anio = v.Anio,
                 Patente = v.Patente,
                 Estado = v.Estado,
                 EstadoMecanico = v.EstadoMecanico,
                 Kilometraje = v.Kilometraje,
                 PrecioPorDia = v.PrecioPorDia,
-                UbicacionActual = v.UbicacionActual,
                 MantenimientoACargoDe = v.MantenimientoACargoDe,
                 ImagenUrl = v.ImagenUrl,
                 Activo = v.Activo,
-                // ✅ añadimos
                 SeguroVigente = v.SeguroVigente,
-                DocumentacionVigente = v.DocumentacionVigente
+                DocumentacionVigente = v.DocumentacionVigente,
+
+                ModeloId = v.ModeloId,
+                ModeloNombre = v.Modelo.Nombre,
+                MarcaNombre = v.Modelo.Marca.Nombre,
+
+                UbicacionActualId = v.UbicacionActualId,
+                UbicacionNombre = v.UbicacionActual != null ? v.UbicacionActual.Nombre : null
             }).ToListAsync();
         }
 
         public async Task<VehiculoResponseDTO?> GetByIdAsync(int id)
         {
-            var v = await _context.Vehiculos.FindAsync(id);
+            var v = await _context.Vehiculos
+                .Include(v => v.Modelo)
+                    .ThenInclude(m => m.Marca)
+                .Include(v => v.UbicacionActual)
+                .FirstOrDefaultAsync(x => x.IdVehiculo == id);
+
             if (v == null) return null;
 
-        return new VehiculoResponseDTO
-        {
-            IdVehiculo = v.IdVehiculo,
-            Tipo = v.Tipo,
-            Marca = v.Marca,
-            Modelo = v.Modelo,
-            Anio = v.Anio,
-            Patente = v.Patente,
-            Estado = v.Estado,
-            EstadoMecanico = v.EstadoMecanico,
-            Kilometraje = v.Kilometraje,
-            PrecioPorDia = v.PrecioPorDia,
-            UbicacionActual = v.UbicacionActual,
-            MantenimientoACargoDe = v.MantenimientoACargoDe,
-            ImagenUrl = v.ImagenUrl,
-            Activo = v.Activo,
-            // ✅ añadimos
-            SeguroVigente = v.SeguroVigente,
-            DocumentacionVigente = v.DocumentacionVigente
-        };
+            return new VehiculoResponseDTO
+            {
+                IdVehiculo = v.IdVehiculo,
+                Tipo = v.Tipo,
+                Anio = v.Anio,
+                Patente = v.Patente,
+                Estado = v.Estado,
+                EstadoMecanico = v.EstadoMecanico,
+                Kilometraje = v.Kilometraje,
+                PrecioPorDia = v.PrecioPorDia,
+                MantenimientoACargoDe = v.MantenimientoACargoDe,
+                ImagenUrl = v.ImagenUrl,
+                Activo = v.Activo,
+                SeguroVigente = v.SeguroVigente,
+                DocumentacionVigente = v.DocumentacionVigente,
 
+                ModeloId = v.ModeloId,
+                ModeloNombre = v.Modelo.Nombre,
+                MarcaNombre = v.Modelo.Marca.Nombre,
+
+                UbicacionActualId = v.UbicacionActualId,
+                UbicacionNombre = v.UbicacionActual?.Nombre
+            };
         }
 
         public async Task<VehiculoResponseDTO> CreateAsync(VehiculoCreateDTO dto)
@@ -80,8 +94,7 @@ namespace GoVehiculos.API.Services
             {
                 SocioId = dto.SocioId,
                 Tipo = dto.Tipo,
-                Marca = dto.Marca,
-                Modelo = dto.Modelo,
+                ModeloId = dto.ModeloId,
                 Anio = dto.Anio,
                 Patente = dto.Patente,
                 Estado = dto.Estado,
@@ -89,7 +102,7 @@ namespace GoVehiculos.API.Services
                 Kilometraje = dto.Kilometraje,
                 LicenciaRequerida = dto.LicenciaRequerida,
                 PrecioPorDia = dto.PrecioPorDia,
-                UbicacionActual = dto.UbicacionActual,
+                UbicacionActualId = dto.UbicacionActualId,
                 SeguroVigente = dto.SeguroVigente,
                 DocumentacionVigente = dto.DocumentacionVigente,
                 MantenimientoACargoDe = dto.MantenimientoACargoDe,
@@ -112,18 +125,16 @@ namespace GoVehiculos.API.Services
             v.EstadoMecanico = dto.EstadoMecanico;
             v.Kilometraje = dto.Kilometraje;
             v.PrecioPorDia = dto.PrecioPorDia;
-            v.UbicacionActual = dto.UbicacionActual;
-
-            // ✅ ahora se guardan correctamente
             v.SeguroVigente = dto.SeguroVigente;
             v.DocumentacionVigente = dto.DocumentacionVigente;
-
             v.Activo = dto.Activo;
+
+            v.ModeloId = dto.ModeloId;
+            v.UbicacionActualId = dto.UbicacionActualId;
 
             await _context.SaveChangesAsync();
             return true;
         }
-
 
         public async Task<bool> DeleteAsync(int id)
         {

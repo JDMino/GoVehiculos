@@ -7,13 +7,10 @@ namespace GoVehiculos.API.Models
         [Key]
         public int IdNotificacion { get; set; }
         public int UsuarioId { get; set; }
-        public string Tipo { get; set; } = string.Empty;
+        public Usuario? Usuario { get; set; }   // FK a Usuario
         public string Titulo { get; set; } = string.Empty;
         public string Mensaje { get; set; } = string.Empty;
-        public string Canal { get; set; } = string.Empty;
-        public DateTime Fecha { get; set; } = DateTime.Now;
         public bool Leido { get; set; } = false;
-        public string EstadoEnvio { get; set; } = "pendiente";
-        public string Prioridad { get; set; } = "media";
+        public DateTime FechaCreacion { get; set; } = DateTime.Now;
     }
 }
