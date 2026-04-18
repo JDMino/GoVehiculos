@@ -46,6 +46,9 @@ builder.Services.AddScoped<AuthService>();
 builder.Services.AddScoped<UsuarioService>();
 builder.Services.AddScoped<VehiculoService>();
 
+builder.Services.AddScoped<MarcaService>();
+builder.Services.AddScoped<ModeloService>();
+builder.Services.AddScoped<UbicacionService>();
 
 
 var app = builder.Build();

@@ -1,4 +1,4 @@
-﻿using GoVehiculos.API.Data;
+﻿﻿using GoVehiculos.API.Data;
 using GoVehiculos.API.DTOs;
 using GoVehiculos.API.Models;
 using Microsoft.EntityFrameworkCore;
@@ -30,7 +30,8 @@ namespace GoVehiculos.API.Services
                     Activo = u.Activo,
                     Bloqueado = u.Bloqueado,
                     FechaRegistro = u.FechaRegistro,
-                    DireccionId = u.DireccionId
+                    DireccionId = u.DireccionId,
+                    Telefono = u.Telefono,
                 })
                 .ToListAsync();
         }
@@ -55,7 +56,8 @@ namespace GoVehiculos.API.Services
                 Activo = u.Activo,
                 Bloqueado = u.Bloqueado,
                 FechaRegistro = u.FechaRegistro,
-                DireccionId = u.DireccionId
+                DireccionId = u.DireccionId,
+                   Telefono = u.Telefono,
             };
         }
 

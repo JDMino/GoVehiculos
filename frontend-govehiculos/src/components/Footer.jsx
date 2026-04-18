@@ -157,21 +157,6 @@ export default function Footer() {
                 </div>
               ))}
             </div>
-
-            {/* University Badge */}
-            <div className="mt-6 p-3 bg-slate-800/50 rounded-lg border border-slate-700/50">
-              <div className="flex items-start gap-2">
-                <ExternalLink className="h-4 w-4 text-blue-400 mt-0.5 shrink-0" />
-                <div>
-                  <p className="text-slate-300 text-xs font-medium">
-                    Universidad Nacional del Nordeste
-                  </p>
-                  <p className="text-slate-500 text-xs mt-0.5">
-                    Ingenieria del Software II
-                  </p>
-                </div>
-              </div>
-            </div>
           </div>
         </div>
       </div>

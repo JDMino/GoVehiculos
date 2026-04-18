@@ -12,64 +12,70 @@ import {
 import api from "../api/axiosConfig";
 import useAuthStore from "../context/AuthStore";
 
+const StatCard = ({ title, value, Icon, colorClass, subtitle, isLoading }) => (
+  <div className="bg-white rounded-xl shadow-sm border border-gray-100 p-6 flex items-center space-x-4 hover:shadow-md transition-shadow">
+    <div className={`p-4 rounded-full ${colorClass} bg-opacity-10`}>
+      <Icon className={`h-8 w-8 ${colorClass.replace("bg-", "text-")}`} />
+    </div>
+    <div>
+      <p className="text-sm font-medium text-gray-500 uppercase tracking-wider">
+        {title}
+      </p>
+      <h3 className="text-3xl font-bold text-gray-900 mt-1">
+        {/* Usamos el prop isLoading en lugar de la variable global */}
+        {isLoading ? "..." : value}
+      </h3>
+      {subtitle && <p className="text-xs text-gray-400 mt-1">{subtitle}</p>}
+    </div>
+  </div>
+);
+
 export default function Dashboard() {
   const user = useAuthStore((state) => state.user);
   const [stats, setStats] = useState({
     totalVehiculos: 0,
     totalUsuarios: 0,
     vehiculosDisponibles: 0,
-    // El total de mantenimientos lo dejaremos en 0 hasta que implementemos esa etapa
     mantenimientosActivos: 0,
   });
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
     const fetchStats = async () => {
+      let vehiculosData = [];
+      let usuariosData = [];
+
+      // 1. Intentamos cargar Vehículos
       try {
-        // Hacemos las peticiones en paralelo para que cargue más rápido
-        const [vehiculosRes, usuariosRes] = await Promise.all([
-          api.get("/vehiculos"),
-          api.get("/usuarios"),
-        ]);
-
-        const vehiculos = vehiculosRes.data;
-        const usuarios = usuariosRes.data;
-
-        setStats({
-          totalVehiculos: vehiculos.length,
-          vehiculosDisponibles: vehiculos.filter(
-            (v) => v.estado === "disponible",
-          ).length,
-          totalUsuarios: usuarios.length,
-          mantenimientosActivos: 0,
-        });
+        const vehiculosRes = await api.get("/vehiculos");
+        vehiculosData = vehiculosRes.data;
       } catch (error) {
-        console.error("Error al cargar las estadísticas:", error);
-      } finally {
-        setLoading(false);
+        console.warn("No se pudieron cargar los vehículos:", error.message);
       }
+
+      // 2. Intentamos cargar Usuarios
+      try {
+        const usuariosRes = await api.get("/usuarios");
+        usuariosData = usuariosRes.data;
+      } catch (error) {
+        console.error("No se pudieron cargar los usuarios:", error.message);
+      }
+
+      // 3. Actualizamos las estadísticas
+      setStats({
+        totalVehiculos: vehiculosData.length,
+        vehiculosDisponibles: vehiculosData.filter(
+          (v) => v.estado === "disponible",
+        ).length,
+        totalUsuarios: usuariosData.length,
+        mantenimientosActivos: 0,
+      });
+
+      setLoading(false);
     };
 
     fetchStats();
   }, []);
-
-  // Componente interno para las tarjetas de estadísticas
-  const StatCard = ({ title, value, Icon, colorClass, subtitle }) => (
-    <div className="bg-white rounded-xl shadow-sm border border-gray-100 p-6 flex items-center space-x-4 hover:shadow-md transition-shadow">
-      <div className={`p-4 rounded-full ${colorClass} bg-opacity-10`}>
-        <Icon className={`h-8 w-8 ${colorClass.replace("bg-", "text-")}`} />
-      </div>
-      <div>
-        <p className="text-sm font-medium text-gray-500 uppercase tracking-wider">
-          {title}
-        </p>
-        <h3 className="text-3xl font-bold text-gray-900 mt-1">
-          {loading ? "..." : value}
-        </h3>
-        {subtitle && <p className="text-xs text-gray-400 mt-1">{subtitle}</p>}
-      </div>
-    </div>
-  );
 
   return (
     <div className="min-h-screen bg-gray-50 p-4 sm:p-8">
@@ -99,6 +105,7 @@ export default function Dashboard() {
             Icon={Car}
             colorClass="bg-blue-500 text-blue-600"
             subtitle={`${stats.vehiculosDisponibles} disponibles ahora`}
+            isLoading={loading}
           />
           <StatCard
             title="Usuarios Registrados"
@@ -106,6 +113,7 @@ export default function Dashboard() {
             Icon={Users}
             colorClass="bg-green-500 text-green-600"
             subtitle="Clientes, Socios y Empleados"
+            isLoading={loading}
           />
           <StatCard
             title="Mantenimientos"
@@ -113,6 +121,7 @@ export default function Dashboard() {
             Icon={Wrench}
             colorClass="bg-orange-500 text-orange-600"
             subtitle="Órdenes en proceso (Próximamente)"
+            isLoading={loading}
           />
           <StatCard
             title="Actividad de red"
@@ -120,6 +129,7 @@ export default function Dashboard() {
             Icon={Activity}
             colorClass="bg-purple-500 text-purple-600"
             subtitle="Conexión con BD GoVehiculosDB"
+            isLoading={false} // Siempre estable visualmente
           />
         </div>
 
@@ -189,9 +199,8 @@ export default function Dashboard() {
               </div>
             </div>
 
-            {/* Acción 3: Mantenimiento (Próxima Etapa) */}
+            {/* Acción 3: Mantenimiento */}
             <div className="bg-white rounded-xl shadow-sm border border-gray-100 p-6 flex flex-col h-full relative overflow-hidden">
-              {/* Etiqueta de "En construcción" */}
               <div className="absolute top-4 right-[-35px] bg-yellow-400 text-yellow-900 text-xs font-bold px-10 py-1 rotate-45 shadow-sm">
                 PRÓXIMAMENTE
               </div>

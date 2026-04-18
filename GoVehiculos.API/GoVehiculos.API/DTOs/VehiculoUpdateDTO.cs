@@ -9,7 +9,6 @@
         public bool SeguroVigente { get; set; } = true;
         public bool DocumentacionVigente { get; set; } = true;
         public bool Activo { get; set; } = true;
-
         public int ModeloId { get; set; }
         public int? UbicacionActualId { get; set; }
     }

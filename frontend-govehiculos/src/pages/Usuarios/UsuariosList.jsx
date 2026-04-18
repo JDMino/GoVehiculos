@@ -19,49 +19,30 @@ import {
   ArrowUpDown,
 } from "lucide-react";
 
-
 export default function UsuariosList() {
   const [usuarios, setUsuarios] = useState([]);
   const [searchTerm, setSearchTerm] = useState("");
   const [filterRole, setFilterRole] = useState("all");
   const [filterStatus, setFilterStatus] = useState("all");
 
-
   const [modalBaja, setModalBaja] = useState({
     isOpen: false,
     idUsuario: null,
   });
 
-
   useEffect(() => {
     api.get("/usuarios").then((res) => setUsuarios(res.data));
   }, []);
-
-
-  /*const handleDelete = async (id) => {
-    if (confirm("¿Deseas dar de baja este usuario? El registro permanecerá pero figurará como inactivo.")) {
-      try {
-        await api.delete(`/usuarios/${id}`);
-        setUsuarios(usuarios.map(u => u.idUsuario === id ? { ...u, activo: false } : u));
-      } catch (error) {
-        console.error("Detalles del error:", error);
-        alert("Error al procesar la baja.");
-      }
-    }
-  };*/
-
 
   // Abre el modal guardando el ID
   const pedirConfirmacion = (id) => {
     setModalBaja({ isOpen: true, idUsuario: id });
   };
 
-
   // Cierra el modal sin hacer nada
   const cancelarBaja = () => {
     setModalBaja({ isOpen: false, idUsuario: null });
   };
-
 
   // Ejecuta la baja lógica en el backend y actualiza el estado local
   const confirmarBaja = async () => {
@@ -79,14 +60,15 @@ export default function UsuariosList() {
     }
   };
 
-
   const filteredUsuarios = usuarios.filter((u) => {
     const matchesSearch =
       `${u.nombre} ${u.apellido}`
         .toLowerCase()
         .includes(searchTerm.toLowerCase()) ||
       u.email.toLowerCase().includes(searchTerm.toLowerCase());
-    const matchesRole = filterRole === "all" || u.rol === filterRole;
+    const matchesRole =
+      filterRole === "all" ||
+      (u.rol ?? "").toLowerCase() === filterRole.toLowerCase();
     const matchesStatus =
       filterStatus === "all" ||
       (filterStatus === "active" && u.activo) ||
@@ -94,14 +76,14 @@ export default function UsuariosList() {
     return matchesSearch && matchesRole && matchesStatus;
   });
 
-
   const stats = {
     total: usuarios.length,
     active: usuarios.filter((u) => u.activo).length,
-    admins: usuarios.filter((u) => u.rol === "administrador").length,
+    admins: usuarios.filter(
+      (u) => (u.rol ?? "").toLowerCase() === "administrador",
+    ).length,
     blocked: usuarios.filter((u) => u.bloqueado).length,
   };
-
 
   const getRoleBadgeStyles = (rol) => {
     const styles = {
@@ -110,9 +92,11 @@ export default function UsuariosList() {
       socio: "bg-amber-50 text-amber-700 ring-amber-600/20",
       cliente: "bg-slate-50 text-slate-700 ring-slate-600/20",
     };
-    return styles[rol] || styles.cliente;
+    return styles[(rol ?? "").toLowerCase()] || styles.cliente;
   };
 
+  const capitalize = (str) =>
+    str ? str.charAt(0).toUpperCase() + str.slice(1).toLowerCase() : "";
 
   return (
     <div className="min-h-screen bg-slate-50">
@@ -143,7 +127,6 @@ export default function UsuariosList() {
           </div>
         </div>
       </div>
-
 
       <div className="max-w-7xl mx-auto px-6 py-8">
         {/* Stats Cards */}
@@ -206,7 +189,6 @@ export default function UsuariosList() {
           </div>
         </div>
 
-
         {/* Search and Filters */}
         <div className="bg-white rounded-2xl border border-slate-200 p-4 mb-6">
           <div className="flex flex-col lg:flex-row gap-4">
@@ -250,7 +232,6 @@ export default function UsuariosList() {
             </div>
           </div>
         </div>
-
 
         {/* Users Table */}
         <div className="bg-white rounded-2xl border border-slate-200 overflow-hidden">
@@ -321,7 +302,7 @@ export default function UsuariosList() {
                         {u.rol === "administrador" && (
                           <Shield className="h-3.5 w-3.5" />
                         )}
-                        {u.rol.charAt(0).toUpperCase() + u.rol.slice(1)}
+                        {capitalize(u.rol)}
                       </span>
                     </td>
                     <td className="px-6 py-4">
@@ -371,7 +352,6 @@ export default function UsuariosList() {
             </table>
           </div>
 
-
           {filteredUsuarios.length === 0 && (
             <div className="text-center py-16">
               <div className="h-16 w-16 rounded-2xl bg-slate-100 flex items-center justify-center mx-auto mb-4">
@@ -385,7 +365,6 @@ export default function UsuariosList() {
               </p>
             </div>
           )}
-
 
           {/* Table Footer */}
           {filteredUsuarios.length > 0 && (
@@ -406,7 +385,6 @@ export default function UsuariosList() {
         </div>
       </div>
 
-
       {/* MODAL DE CONFIRMACIÓN PARA USUARIOS */}
       {modalBaja.isOpen && (
         <div className="fixed inset-0 z-[100] flex items-center justify-center p-4 bg-slate-900/40 backdrop-blur-sm animate-in fade-in duration-200">
@@ -426,7 +404,6 @@ export default function UsuariosList() {
                 </p>
               </div>
             </div>
-
 
             <div className="flex justify-end gap-3 mt-6 pt-4 border-t border-slate-100">
               <button

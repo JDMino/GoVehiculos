@@ -1,4 +1,4 @@
-﻿namespace GoVehiculos.API.DTOs
+﻿﻿namespace GoVehiculos.API.DTOs
 {
     public class UsuarioResponseDTO
     {
@@ -12,6 +12,7 @@
         public bool Activo { get; set; }
         public bool Bloqueado { get; set; }
         public DateTime FechaRegistro { get; set; }
+        public string? Telefono { get; set; }
 
         public int? DireccionId { get; set; }
     }

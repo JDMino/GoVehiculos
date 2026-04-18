@@ -17,7 +17,6 @@ import {
   Unlock,
 } from "lucide-react";
 
-
 export default function UsuarioEdit() {
   const { id } = useParams();
   const navigate = useNavigate();
@@ -32,7 +31,6 @@ export default function UsuarioEdit() {
     activo: true,
     rolId: 1,
   });
-
 
   useEffect(() => {
     const fetchUser = async () => {
@@ -50,7 +48,6 @@ export default function UsuarioEdit() {
     fetchUser();
   }, [id, navigate]);
 
-
   const handleChange = (e) => {
     const { name, value, type, checked } = e.target;
     setForm({
@@ -63,7 +60,6 @@ export default function UsuarioEdit() {
             : value,
     });
   };
-
 
   const handleSubmit = async (e) => {
     e.preventDefault();
@@ -79,14 +75,12 @@ export default function UsuarioEdit() {
     }
   };
 
-
   const roles = [
     { id: 1, name: "Cliente", color: "slate" },
     { id: 2, name: "Socio", color: "amber" },
     { id: 3, name: "Empleado", color: "blue" },
     { id: 4, name: "Administrador", color: "violet" },
   ];
-
 
   if (loading)
     return (
@@ -102,7 +96,6 @@ export default function UsuarioEdit() {
       </div>
     );
 
-
   return (
     <div className="min-h-screen bg-slate-50 py-8 px-6">
       <div className="max-w-4xl mx-auto">
@@ -114,7 +107,6 @@ export default function UsuarioEdit() {
           <ArrowLeft className="h-4 w-4" />
           Volver al directorio
         </Link>
-
 
         {/* Main Card */}
         <div className="bg-white rounded-2xl border border-slate-200 overflow-hidden shadow-sm">
@@ -157,7 +149,6 @@ export default function UsuarioEdit() {
             </div>
           </div>
 
-
           {/* Form */}
           <form onSubmit={handleSubmit} className="p-8">
             {/* Personal Info Section */}
@@ -170,7 +161,6 @@ export default function UsuarioEdit() {
                   Informacion Personal
                 </h2>
               </div>
-
 
               <div className="grid grid-cols-1 md:grid-cols-2 gap-5">
                 <div className="space-y-2">
@@ -187,7 +177,6 @@ export default function UsuarioEdit() {
                   />
                 </div>
 
-
                 <div className="space-y-2">
                   <label className="text-sm font-medium text-slate-700">
                     Apellido
@@ -201,7 +190,6 @@ export default function UsuarioEdit() {
                     required
                   />
                 </div>
-
 
                 <div className="space-y-2">
                   <label className="text-sm font-medium text-slate-700">
@@ -219,27 +207,8 @@ export default function UsuarioEdit() {
                     />
                   </div>
                 </div>
-
-
-                <div className="space-y-2">
-                  <label className="text-sm font-medium text-slate-700">
-                    Direccion
-                  </label>
-                  <div className="relative">
-                    <MapPin className="absolute left-4 top-1/2 -translate-y-1/2 h-5 w-5 text-slate-400" />
-                    <input
-                      type="text"
-                      name="direccion"
-                      value={form.direccion || ""}
-                      onChange={handleChange}
-                      placeholder="Calle, numero, ciudad"
-                      className="w-full pl-12 pr-4 py-3 bg-slate-50 border border-slate-200 rounded-xl focus:ring-2 focus:ring-slate-900 focus:border-transparent outline-none transition-all placeholder:text-slate-400"
-                    />
-                  </div>
-                </div>
               </div>
             </div>
-
 
             {/* Role Section */}
             <div className="mb-8 pt-8 border-t border-slate-100">
@@ -251,7 +220,6 @@ export default function UsuarioEdit() {
                   Nivel de Acceso
                 </h2>
               </div>
-
 
               <div className="max-w-md">
                 <label className="text-sm font-medium text-slate-700 block mb-2">
@@ -275,7 +243,6 @@ export default function UsuarioEdit() {
               </div>
             </div>
 
-
             {/* Account Status Section */}
             <div className="mb-8 pt-8 border-t border-slate-100">
               <div className="flex items-center gap-2 mb-6">
@@ -286,7 +253,6 @@ export default function UsuarioEdit() {
                   Estado de la Cuenta
                 </h2>
               </div>
-
 
               <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                 {/* Active Toggle */}
@@ -340,7 +306,6 @@ export default function UsuarioEdit() {
                   </div>
                 </label>
 
-
                 {/* Blocked Toggle */}
                 <label
                   className={`relative flex items-center justify-between p-5 rounded-xl border-2 cursor-pointer transition-all ${
@@ -393,7 +358,6 @@ export default function UsuarioEdit() {
                 </label>
               </div>
 
-
               {form.bloqueado && (
                 <div className="mt-4 p-4 rounded-xl bg-amber-50 border border-amber-200 flex items-start gap-3">
                   <AlertTriangle className="h-5 w-5 text-amber-600 shrink-0 mt-0.5" />
@@ -409,7 +373,6 @@ export default function UsuarioEdit() {
                 </div>
               )}
             </div>
-
 
             {/* Actions */}
             <div className="flex items-center justify-between pt-8 border-t border-slate-100">

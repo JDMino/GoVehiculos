@@ -23,44 +23,63 @@ export default function VehiculoEdit() {
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
   const [vehiculoInfo, setVehiculoInfo] = useState(null);
+
+  const [marcas, setMarcas] = useState([]);
+  const [modelos, setModelos] = useState([]);
+  const [ubicaciones, setUbicaciones] = useState([]);
+
   const [form, setForm] = useState({
+    modeloId: "",
+    anio: 0,
+    patente: "",
     estado: "disponible",
     estadoMecanico: "bueno",
     kilometraje: 0,
     precioPorDia: 0,
-    ubicacionActual: "",
+    ubicacionActualId: "",
     seguroVigente: true,
     documentacionVigente: true,
     activo: true,
   });
 
   useEffect(() => {
+    // Cargar datos del vehículo
     api
       .get(`/vehiculos/${id}`)
       .then((res) => {
         setVehiculoInfo({
-          marca: res.data.marca,
-          modelo: res.data.modelo,
+          marca: res.data.marcaNombre,
+          modelo: res.data.modeloNombre,
           anio: res.data.anio,
           patente: res.data.patente,
         });
 
         setForm({
+          modeloId: res.data.modeloId,
+          anio: res.data.anio,
+          patente: res.data.patente,
           estado: res.data.estado,
           estadoMecanico: res.data.estadoMecanico,
           kilometraje: res.data.kilometraje,
           precioPorDia: res.data.precioPorDia,
-          ubicacionActual: res.data.ubicacionActual,
+          ubicacionActualId: res.data.ubicacionActualId,
           seguroVigente: res.data.seguroVigente,
           documentacionVigente: res.data.documentacionVigente,
           activo: res.data.activo,
         });
+
+        // Cargar modelos de la marca actual
+        api.get(`/modelos?marcaId=${res.data.marcaId}`).then((r) => setModelos(r.data));
         setLoading(false);
       })
       .catch(() => {
         alert("Error al cargar los datos");
         navigate("/vehiculos");
       });
+
+    // Cargar marcas y ubicaciones
+    api.get("/marcas").then((res) => setMarcas(res.data));
+    api.get("/ubicaciones").then((res) => setUbicaciones(res.data));
   }, [id, navigate]);
 
   const handleChange = (e) => {
@@ -76,7 +95,7 @@ export default function VehiculoEdit() {
     e.preventDefault();
     setSaving(true);
     try {
-      await api.put(`/vehiculos/${id}`, form); // ✅ corregido comillas
+      await api.put(`/vehiculos/${id}`, form);
       navigate("/vehiculos");
     } catch (error) {
       console.error("Detalles del error: ", error);
@@ -178,7 +197,7 @@ export default function VehiculoEdit() {
           </div>
         )}
 
-        <form onSubmit={handleSubmit} className="space-y-8">
+                <form onSubmit={handleSubmit} className="space-y-8">
           {/* Estado de Operacion */}
           <div className="bg-white rounded-2xl border border-slate-200 overflow-hidden">
             <div className="px-6 py-4 border-b border-slate-100 bg-slate-50">
@@ -207,215 +226,228 @@ export default function VehiculoEdit() {
                 </div>
 
                 {/* Estado Mecánico */}
-                  <div className="space-y-2">
-                    <label className="text-sm font-medium text-slate-700">
-                      Condición Mecánica
-                    </label>
-                    <select
-                      name="estadoMecanico"
-                      value={form.estadoMecanico}
+                <div className="space-y-2">
+                  <label className="text-sm font-medium text-slate-700">
+                    Condición Mecánica
+                  </label>
+                  <select
+                    name="estadoMecanico"
+                    value={form.estadoMecanico}
+                    onChange={handleChange}
+                    className="w-full px-4 py-3 bg-slate-50 border border-slate-200 rounded-xl focus:ring-2 focus:ring-slate-900 text-slate-900 font-medium"
+                  >
+                    <option value="bueno">Bueno</option>
+                    <option value="regular">Regular</option>
+                    <option value="malo">Malo</option>
+                  </select>
+                </div>
+
+                {/* Kilometraje */}
+                <div className="space-y-2">
+                  <label className="text-sm font-medium text-slate-700">
+                    Kilometraje Actual
+                  </label>
+                  <div className="relative">
+                    <Gauge className="absolute left-4 top-1/2 -translate-y-1/2 h-5 w-5 text-slate-400" />
+                    <input
+                      type="number"
+                      name="kilometraje"
+                      value={form.kilometraje}
                       onChange={handleChange}
-                      className="w-full px-4 py-3 bg-slate-50 border border-slate-200 rounded-xl focus:ring-2 focus:ring-slate-900 text-slate-900 font-medium"
+                      className="w-full pl-12 pr-4 py-3 bg-slate-50 border border-slate-200 rounded-xl focus:ring-2 focus:ring-slate-900 text-slate-900"
+                    />
+                  </div>
+                </div>
+
+                {/* Ubicación */}
+                <div className="space-y-2">
+                  <label className="text-sm font-medium text-slate-700">
+                    Ubicación / Sucursal
+                  </label>
+                  <div className="relative">
+                    <MapPin className="absolute left-4 top-1/2 -translate-y-1/2 h-5 w-5 text-slate-400" />
+                    <select
+                      name="ubicacionActualId"
+                      value={form.ubicacionActualId || ""}
+                      onChange={handleChange}
+                      className="w-full pl-12 pr-4 py-3 bg-slate-50 border border-slate-200 rounded-xl focus:ring-2 focus:ring-slate-900 text-slate-900"
                     >
-                      <option value="bueno">Bueno</option>
-                      <option value="regular">Regular</option>
-                      <option value="malo">Malo</option>
+                      <option value="">Seleccione una sucursal</option>
+                      {ubicaciones.map((u) => (
+                        <option key={u.idUbicacion} value={u.idUbicacion}>
+                          {u.nombre}
+                        </option>
+                      ))}
                     </select>
                   </div>
+                </div>
 
-                  {/* Kilometraje */}
-                  <div className="space-y-2">
-                    <label className="text-sm font-medium text-slate-700">
-                      Kilometraje Actual
-                    </label>
-                    <div className="relative">
-                      <Gauge className="absolute left-4 top-1/2 -translate-y-1/2 h-5 w-5 text-slate-400" />
-                      <input
-                        type="number"
-                        name="kilometraje"
-                        value={form.kilometraje}
-                        onChange={handleChange}
-                        className="w-full pl-12 pr-4 py-3 bg-slate-50 border border-slate-200 rounded-xl focus:ring-2 focus:ring-slate-900 text-slate-900"
-                      />
-                    </div>
+                {/* Precio por día */}
+                <div className="space-y-2 md:col-span-2">
+                  <label className="text-sm font-medium text-slate-700">
+                    Precio por Día ($)
+                  </label>
+                  <div className="relative max-w-xs">
+                    <DollarSign className="absolute left-4 top-1/2 -translate-y-1/2 h-5 w-5 text-slate-400" />
+                    <input
+                      type="number"
+                      name="precioPorDia"
+                      value={form.precioPorDia}
+                      onChange={handleChange}
+                      className="w-full pl-12 pr-4 py-3 bg-slate-50 border border-slate-200 rounded-xl focus:ring-2 focus:ring-slate-900 text-slate-900"
+                    />
                   </div>
+                </div>
+              </div>
+            </div>
+          </div>
 
-                  {/* Ubicación */}
-                  <div className="space-y-2">
-                    <label className="text-sm font-medium text-slate-700">
-                      Ubicación / Sucursal
-                    </label>
-                    <div className="relative">
-                      <MapPin className="absolute left-4 top-1/2 -translate-y-1/2 h-5 w-5 text-slate-400" />
-                      <input
-                        type="text"
-                        name="ubicacionActual"
-                        value={form.ubicacionActual || ""}
-                        onChange={handleChange}
-                        className="w-full pl-12 pr-4 py-3 bg-slate-50 border border-slate-200 rounded-xl focus:ring-2 focus:ring-slate-900 text-slate-900 placeholder:text-slate-400"
-                        placeholder="Sucursal Centro"
-                      />
-                    </div>
-                  </div>
-
-                  {/* Precio por día */}
-                  <div className="space-y-2 md:col-span-2">
-                    <label className="text-sm font-medium text-slate-700">
-                      Precio por Día ($)
-                    </label>
-                    <div className="relative max-w-xs">
-                      <DollarSign className="absolute left-4 top-1/2 -translate-y-1/2 h-5 w-5 text-slate-400" />
-                      <input
-                        type="number"
-                        name="precioPorDia"
-                        value={form.precioPorDia}
-                        onChange={handleChange}
-                        className="w-full pl-12 pr-4 py-3 bg-slate-50 border border-slate-200 rounded-xl focus:ring-2 focus:ring-slate-900 text-slate-900"
-                      />
-                    </div>
-                  </div>
-                  </div>
-                  </div>
-                  </div>
-
-                  {/* Documentación y Auditoría */}
-                  <div className="bg-white rounded-2xl border border-slate-200 overflow-hidden">
-                    <div className="px-6 py-4 border-b border-slate-100 bg-slate-50">
-                      <h2 className="font-semibold text-slate-900 flex items-center gap-2">
-                        <FileCheck className="h-5 w-5 text-slate-400" />
-                        Documentación y Auditoría
-                      </h2>
-                    </div>
-                    <div className="p-6">
-                      <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-                        {/* Seguro Vigente */}
-                        <button
-                          type="button"
-                          onClick={() => handleToggle("seguroVigente")}
-                          className={`p-4 rounded-xl border-2 transition-all text-left ${
-                            form.seguroVigente
-                              ? "border-emerald-200 bg-emerald-50"
-                              : "border-slate-200 bg-slate-50"
-                          }`}
-                        >
-                          <div className="flex items-center justify-between mb-2">
-                            <ShieldCheck
-                              className={`h-5 w-5 ${
-                                form.seguroVigente ? "text-emerald-600" : "text-slate-400"
-                              }`}
-                            />
-                            <div
-                              className={`w-10 h-6 rounded-full p-1 transition-colors ${
-                                form.seguroVigente ? "bg-emerald-500" : "bg-slate-300"
-                              }`}
-                            >
-                              <div
-                                className={`w-4 h-4 rounded-full bg-white shadow transition-transform ${
-                                  form.seguroVigente ? "translate-x-4" : "translate-x-0"
-                                }`}
-                              />
-                            </div>
-                          </div>
-                          <p className="font-semibold text-slate-900 text-sm">Seguro Vigente</p>
-                          <p className="text-xs text-slate-500 mt-0.5">Póliza activa</p>
-                        </button>
-
-                        {/* Documentación Vigente */}
-                        <button
-                          type="button"
-                          onClick={() => handleToggle("documentacionVigente")}
-                          className={`p-4 rounded-xl border-2 transition-all text-left ${
-                            form.documentacionVigente
-                              ? "border-emerald-200 bg-emerald-50"
-                              : "border-slate-200 bg-slate-50"
-                          }`}
-                        >
-                          <div className="flex items-center justify-between mb-2">
-                            <FileCheck
-                              className={`h-5 w-5 ${
-                                form.documentacionVigente ? "text-emerald-600" : "text-slate-400"
-                              }`}
-                            />
-                            <div
-                              className={`w-10 h-6 rounded-full p-1 transition-colors ${
-                                form.documentacionVigente ? "bg-emerald-500" : "bg-slate-300"
-                              }`}
-                            >
-                              <div
-                                className={`w-4 h-4 rounded-full bg-white shadow transition-transform ${
-                                  form.documentacionVigente ? "translate-x-4" : "translate-x-0"
-                                }`}
-                              />
-                            </div>
-                          </div>
-                          <p className="font-semibold text-slate-900 text-sm">Documentación Vigente</p>
-                          <p className="text-xs text-slate-500 mt-0.5">Papeles al día</p>
-                        </button>
-
-                        {/* Vehículo Activo */}
-                        <button
-                          type="button"
-                          onClick={() => handleToggle("activo")}
-                          className={`p-4 rounded-xl border-2 transition-all text-left ${
-                            form.activo ? "border-emerald-200 bg-emerald-50" : "border-red-200 bg-red-50"
-                          }`}
-                        >
-                          <div className="flex items-center justify-between mb-2">
-                            {form.activo ? (
-                              <CheckCircle className="h-5 w-5 text-emerald-600" />
-                            ) : (
-                              <XCircle className="h-5 w-5 text-red-600" />
-                            )}
-                            <div
-                              className={`w-10 h-6 rounded-full p-1 transition-colors ${
-                                form.activo ? "bg-emerald-500" : "bg-red-500"
-                              }`}
-                            >
-                              <div
-                                className={`w-4 h-4 rounded-full bg-white shadow transition-transform ${
-                                  form.activo ? "translate-x-4" : "translate-x-0"
-                                }`}
-                              />
-                            </div>
-                          </div>
-                          <p className="font-semibold text-slate-900 text-sm">Vehículo Activo</p>
-                          <p className="text-xs text-slate-500 mt-0.5">
-                            {form.activo ? "En operación" : "Dado de baja"}
-                          </p>
-                        </button>
-                      </div>
-                    </div>
-                  </div>
-
-                  {/* Actions */}
-                  <div className="flex items-center justify-between pt-4">
-                    <Link
-                      to="/vehiculos"
-                      className="inline-flex items-center gap-2 px-6 py-3 text-slate-600 font-semibold hover:text-slate-900 transition-colors"
+          {/* Documentación y Auditoría */}
+          <div className="bg-white rounded-2xl border border-slate-200 overflow-hidden">
+            <div className="px-6 py-4 border-b border-slate-100 bg-slate-50">
+              <h2 className="font-semibold text-slate-900 flex items-center gap-2">
+                <FileCheck className="h-5 w-5 text-slate-400" />
+                Documentación y Auditoría
+              </h2>
+            </div>
+            <div className="p-6">
+              <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+                {/* Seguro Vigente */}
+                <button
+                  type="button"
+                  onClick={() => handleToggle("seguroVigente")}
+                  className={`p-4 rounded-xl border-2 transition-all text-left ${
+                    form.seguroVigente
+                      ? "border-emerald-200 bg-emerald-50"
+                      : "border-slate-200 bg-slate-50"
+                  }`}
+                >
+                  <div className="flex items-center justify-between mb-2">
+                    <ShieldCheck
+                      className={`h-5 w-5 ${
+                        form.seguroVigente ? "text-emerald-600" : "text-slate-400"
+                      }`}
+                    />
+                    <div
+                      className={`w-10 h-6 rounded-full p-1 transition-colors ${
+                        form.seguroVigente ? "bg-emerald-500" : "bg-slate-300"
+                      }`}
                     >
-                      <ArrowLeft className="h-4 w-4" />
-                      Volver
-                    </Link>
-                    <button
-                      type="submit"
-                      disabled={saving}
-                      className="inline-flex items-center justify-center px-8 py-3 bg-slate-900 hover:bg-slate-800 disabled:bg-slate-400 text-white font-semibold rounded-xl transition-all shadow-lg disabled:shadow-none"
+                      <div
+                        className={`w-4 h-4 rounded-full bg-white shadow transition-transform ${
+                          form.seguroVigente ? "translate-x-4" : "translate-x-0"
+                        }`}
+                      />
+                    </div>
+                  </div>
+                  <p className="font-semibold text-slate-900 text-sm">
+                    Seguro Vigente
+                  </p>
+                  <p className="text-xs text-slate-500 mt-0.5">Póliza activa</p>
+                </button>
+
+                {/* Documentación Vigente */}
+                <button
+                  type="button"
+                  onClick={() => handleToggle("documentacionVigente")}
+                  className={`p-4 rounded-xl border-2 transition-all text-left ${
+                    form.documentacionVigente
+                      ? "border-emerald-200 bg-emerald-50"
+                      : "border-slate-200 bg-slate-50"
+                  }`}
+                >
+                  <div className="flex items-center justify-between mb-2">
+                    <FileCheck
+                      className={`h-5 w-5 ${
+                        form.documentacionVigente ? "text-emerald-600" : "text-slate-400"
+                      }`}
+                    />
+                    <div
+                      className={`w-10 h-6 rounded-full p-1 transition-colors ${
+                        form.documentacionVigente ? "bg-emerald-500" : "bg-slate-300"
+                      }`}
                     >
-                      {saving ? (
-                        <>
-                          <Loader2 className="h-5 w-5 mr-2 animate-spin" />
-                          Guardando...
-                        </>
-                      ) : (
-                        <>
-                          <CheckCircle className="h-5 w-5 mr-2" />
-                          Guardar Cambios
-                        </>
-                      )}
-                    </button>
+                      <div
+                        className={`w-4 h-4 rounded-full bg-white shadow transition-transform ${
+                          form.documentacionVigente ? "translate-x-4" : "translate-x-0"
+                        }`}
+                      />
+                    </div>
                   </div>
-                  </form>
+                  <p className="font-semibold text-slate-900 text-sm">
+                    Documentación Vigente
+                  </p>
+                  <p className="text-xs text-slate-500 mt-0.5">Papeles al día</p>
+                </button>
+
+                                {/* Vehículo Activo */}
+                <button
+                  type="button"
+                  onClick={() => handleToggle("activo")}
+                  className={`p-4 rounded-xl border-2 transition-all text-left ${
+                    form.activo
+                      ? "border-emerald-200 bg-emerald-50"
+                      : "border-red-200 bg-red-50"
+                  }`}
+                >
+                  <div className="flex items-center justify-between mb-2">
+                    {form.activo ? (
+                      <CheckCircle className="h-5 w-5 text-emerald-600" />
+                    ) : (
+                      <XCircle className="h-5 w-5 text-red-600" />
+                    )}
+                    <div
+                      className={`w-10 h-6 rounded-full p-1 transition-colors ${
+                        form.activo ? "bg-emerald-500" : "bg-red-500"
+                      }`}
+                    >
+                      <div
+                        className={`w-4 h-4 rounded-full bg-white shadow transition-transform ${
+                          form.activo ? "translate-x-4" : "translate-x-0"
+                        }`}
+                      />
+                    </div>
                   </div>
-                  </div>
-                  );
-                  }
+                  <p className="font-semibold text-slate-900 text-sm">
+                    Vehículo Activo
+                  </p>
+                  <p className="text-xs text-slate-500 mt-0.5">
+                    {form.activo ? "En operación" : "Dado de baja"}
+                  </p>
+                </button>
+              </div>
+            </div>
+          </div>
+
+          {/* Actions */}
+          <div className="flex items-center justify-between pt-4">
+            <Link
+              to="/vehiculos"
+              className="inline-flex items-center gap-2 px-6 py-3 text-slate-600 font-semibold hover:text-slate-900 transition-colors"
+            >
+              <ArrowLeft className="h-4 w-4" />
+              Volver
+            </Link>
+            <button
+              type="submit"
+              disabled={saving}
+              className="inline-flex items-center justify-center px-8 py-3 bg-slate-900 hover:bg-slate-800 disabled:bg-slate-400 text-white font-semibold rounded-xl transition-all shadow-lg disabled:shadow-none"
+            >
+              {saving ? (
+                <>
+                  <Loader2 className="h-5 w-5 mr-2 animate-spin" />
+                  Guardando...
+                </>
+              ) : (
+                <>
+                  <CheckCircle className="h-5 w-5 mr-2" />
+                  Guardar Cambios
+                </>
+              )}
+            </button>
+          </div>
+        </form>
+      </div>
+    </div>
+  );
+}

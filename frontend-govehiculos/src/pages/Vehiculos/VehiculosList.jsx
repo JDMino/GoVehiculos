@@ -75,8 +75,8 @@ export default function VehiculosList() {
 
   const filteredVehiculos = vehiculos.filter(
     (v) =>
-      v.marca?.toLowerCase().includes(searchTerm.toLowerCase()) ||
-      v.modelo?.toLowerCase().includes(searchTerm.toLowerCase()) ||
+      v.marcaNombre?.toLowerCase().includes(searchTerm.toLowerCase()) ||
+      v.modeloNombre?.toLowerCase().includes(searchTerm.toLowerCase()) ||
       v.patente?.toLowerCase().includes(searchTerm.toLowerCase()),
   );
 
@@ -168,7 +168,7 @@ export default function VehiculosList() {
                     Mecánica
                   </th>
                   <th className="px-6 py-4 text-xs font-bold text-gray-500 uppercase text-center">
-                    Registro
+                    Activo
                   </th>
                   <th className="px-6 py-4 text-xs font-bold text-gray-500 uppercase text-right">
                     Precio/Día
@@ -191,7 +191,7 @@ export default function VehiculosList() {
                         </div>
                         <div>
                           <div className="font-bold text-gray-900">
-                            {v.marca} {v.modelo}
+                            {v.marcaNombre} {v.modeloNombre}
                           </div>
                           <div className="text-xs text-gray-500">
                             ID: #{v.idVehiculo} • Año: {v.anio || "N/A"}

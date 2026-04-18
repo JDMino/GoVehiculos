@@ -100,7 +100,7 @@ namespace GoVehiculos.API.Services
                 Estado = dto.Estado,
                 EstadoMecanico = dto.EstadoMecanico,
                 Kilometraje = dto.Kilometraje,
-                LicenciaRequerida = dto.LicenciaRequerida,
+                //LicenciaRequerida = dto.LicenciaRequerida,
                 PrecioPorDia = dto.PrecioPorDia,
                 UbicacionActualId = dto.UbicacionActualId,
                 SeguroVigente = dto.SeguroVigente,
@@ -142,7 +142,7 @@ namespace GoVehiculos.API.Services
             if (v == null) return false;
 
             v.Activo = false;
-            v.FechaBaja = DateTime.Now;
+            //v.FechaBaja = DateTime.Now;
             await _context.SaveChangesAsync();
             return true;
         }
