@@ -69,7 +69,9 @@ export default function VehiculoEdit() {
         });
 
         // Cargar modelos de la marca actual
-        api.get(`/modelos?marcaId=${res.data.marcaId}`).then((r) => setModelos(r.data));
+        api
+          .get(`/modelos?marcaId=${res.data.marcaId}`)
+          .then((r) => setModelos(r.data));
         setLoading(false);
       })
       .catch(() => {
@@ -108,8 +110,10 @@ export default function VehiculoEdit() {
   const getEstadoBadgeStyles = (estado) => {
     const styles = {
       disponible: "bg-emerald-50 text-emerald-700 ring-emerald-600/20",
-      alquilado: "bg-blue-50 text-blue-700 ring-blue-600/20",
+      reservado: "bg-blue-50 text-blue-700 ring-blue-600/20",
+      en_uso: "bg-indigo-50 text-indigo-700 ring-indigo-600/20",
       mantenimiento: "bg-amber-50 text-amber-700 ring-amber-600/20",
+      fuera_de_servicio: "bg-red-50 text-red-700 ring-red-600/20",
     };
     return styles[estado] || "bg-slate-50 text-slate-700 ring-slate-600/20";
   };
@@ -150,7 +154,7 @@ export default function VehiculoEdit() {
                   </h1>
                   <span
                     className={`inline-flex items-center px-2.5 py-1 rounded-lg text-xs font-semibold ring-1 ring-inset ${getEstadoBadgeStyles(
-                      form.estado
+                      form.estado,
                     )}`}
                   >
                     {form.estado?.charAt(0).toUpperCase() +
@@ -197,7 +201,7 @@ export default function VehiculoEdit() {
           </div>
         )}
 
-                <form onSubmit={handleSubmit} className="space-y-8">
+        <form onSubmit={handleSubmit} className="space-y-8">
           {/* Estado de Operacion */}
           <div className="bg-white rounded-2xl border border-slate-200 overflow-hidden">
             <div className="px-6 py-4 border-b border-slate-100 bg-slate-50">
@@ -220,8 +224,10 @@ export default function VehiculoEdit() {
                     className="w-full px-4 py-3 bg-slate-50 border border-slate-200 rounded-xl focus:ring-2 focus:ring-slate-900 text-slate-900 font-medium"
                   >
                     <option value="disponible">Disponible</option>
-                    <option value="alquilado">Alquilado</option>
+                    <option value="reservado">Reservado</option>
+                    <option value="en_uso">En Uso</option>
                     <option value="mantenimiento">En Mantenimiento</option>
+                    <option value="fuera_de_servicio">Fuera de Servicio</option>
                   </select>
                 </div>
 
@@ -325,7 +331,9 @@ export default function VehiculoEdit() {
                   <div className="flex items-center justify-between mb-2">
                     <ShieldCheck
                       className={`h-5 w-5 ${
-                        form.seguroVigente ? "text-emerald-600" : "text-slate-400"
+                        form.seguroVigente
+                          ? "text-emerald-600"
+                          : "text-slate-400"
                       }`}
                     />
                     <div
@@ -359,17 +367,23 @@ export default function VehiculoEdit() {
                   <div className="flex items-center justify-between mb-2">
                     <FileCheck
                       className={`h-5 w-5 ${
-                        form.documentacionVigente ? "text-emerald-600" : "text-slate-400"
+                        form.documentacionVigente
+                          ? "text-emerald-600"
+                          : "text-slate-400"
                       }`}
                     />
                     <div
                       className={`w-10 h-6 rounded-full p-1 transition-colors ${
-                        form.documentacionVigente ? "bg-emerald-500" : "bg-slate-300"
+                        form.documentacionVigente
+                          ? "bg-emerald-500"
+                          : "bg-slate-300"
                       }`}
                     >
                       <div
                         className={`w-4 h-4 rounded-full bg-white shadow transition-transform ${
-                          form.documentacionVigente ? "translate-x-4" : "translate-x-0"
+                          form.documentacionVigente
+                            ? "translate-x-4"
+                            : "translate-x-0"
                         }`}
                       />
                     </div>
@@ -377,10 +391,12 @@ export default function VehiculoEdit() {
                   <p className="font-semibold text-slate-900 text-sm">
                     Documentación Vigente
                   </p>
-                  <p className="text-xs text-slate-500 mt-0.5">Papeles al día</p>
+                  <p className="text-xs text-slate-500 mt-0.5">
+                    Papeles al día
+                  </p>
                 </button>
 
-                                {/* Vehículo Activo */}
+                {/* Vehículo Activo */}
                 <button
                   type="button"
                   onClick={() => handleToggle("activo")}
