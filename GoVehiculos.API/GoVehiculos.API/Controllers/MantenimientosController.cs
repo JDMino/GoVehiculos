@@ -35,12 +35,13 @@ namespace GoVehiculos.API.Controllers
 
         /// <summary>
         /// GET /api/mantenimientos
-        /// Todas las órdenes de mantenimiento (admin / reportes).
+        /// Todas las órdenes. Acepta ?estado=finalizado|cancelado para filtrar.
+        /// Usado por la vista de historial del administrador.
         /// </summary>
         [HttpGet]
-        public async Task<IActionResult> GetAll()
+        public async Task<IActionResult> GetAll([FromQuery] string? estado)
         {
-            var resultado = await _service.GetAllAsync();
+            var resultado = await _service.GetAllAsync(estado);
             return Ok(resultado);
         }
 
@@ -59,12 +60,10 @@ namespace GoVehiculos.API.Controllers
         /// POST /api/mantenimientos
         /// Crea una orden de mantenimiento (acción del administrador).
         /// EmpleadoId y FechaProgramada son obligatorios.
-        /// 422 si el socio se hace cargo o ya hay una orden activa.
         /// </summary>
         [HttpPost]
         public async Task<IActionResult> Create([FromBody] MantenimientoCreateDTO dto)
         {
-            // ModelState valida los [Required] del DTO antes de llegar al service
             if (!ModelState.IsValid)
                 return BadRequest(ModelState);
 
@@ -78,9 +77,7 @@ namespace GoVehiculos.API.Controllers
 
         /// <summary>
         /// POST /api/mantenimientos/habilitar-socio
-        /// Registra el mantenimiento realizado por el socio y devuelve el vehículo a disponible.
-        /// Solo aplica cuando el vehículo está en "fuera_de_servicio" por cargo del socio.
-        /// RealizadoPor es fijo = "A cargo del Socio" — el service lo asigna, no el frontend.
+        /// Registra el mantenimiento del socio y devuelve el vehículo a disponible.
         /// </summary>
         [HttpPost("habilitar-socio")]
         public async Task<IActionResult> HabilitarSocio([FromBody] HabilitarVehiculoSocioDTO dto)
@@ -125,7 +122,7 @@ namespace GoVehiculos.API.Controllers
 
         /// <summary>
         /// GET /api/mantenimientos/empleado/{empleadoId}
-        /// Mantenimientos asignados a un empleado específico (activos + terminales).
+        /// Mantenimientos asignados a un empleado específico.
         /// </summary>
         [HttpGet("empleado/{empleadoId}")]
         public async Task<IActionResult> GetByEmpleado(int empleadoId)
@@ -136,24 +133,20 @@ namespace GoVehiculos.API.Controllers
 
         /// <summary>
         /// PATCH /api/mantenimientos/{id}/iniciar
-        /// Inicia el mantenimiento: "pendiente" → "iniciado".
-        /// Query param: empleadoId
+        /// "pendiente" → "iniciado". Query param: empleadoId
         /// </summary>
         [HttpPatch("{id}/iniciar")]
         public async Task<IActionResult> Iniciar(int id, [FromBody] MantenimientoIniciarDTO dto,
             [FromQuery] int empleadoId)
         {
             var (exito, mensaje) = await _service.IniciarAsync(id, empleadoId);
-
-            if (!exito)
-                return UnprocessableEntity(new { mensaje });
-
+            if (!exito) return UnprocessableEntity(new { mensaje });
             return Ok(new { mensaje });
         }
 
         /// <summary>
         /// PATCH /api/mantenimientos/{id}/finalizar
-        /// Finaliza el mantenimiento: "iniciado" → "finalizado".
+        /// "iniciado" → "finalizado". Actualiza EstadoMecanico del vehículo a "bueno".
         /// Query param: empleadoId
         /// </summary>
         [HttpPatch("{id}/finalizar")]
@@ -161,27 +154,40 @@ namespace GoVehiculos.API.Controllers
             [FromQuery] int empleadoId)
         {
             var (exito, mensaje) = await _service.FinalizarAsync(id, empleadoId, dto);
-
-            if (!exito)
-                return UnprocessableEntity(new { mensaje });
-
+            if (!exito) return UnprocessableEntity(new { mensaje });
             return Ok(new { mensaje });
         }
 
         /// <summary>
         /// PATCH /api/mantenimientos/{id}/cancelar
-        /// Cancela el mantenimiento: "iniciado" → "cancelado".
-        /// Query param: empleadoId
+        /// "iniciado" → "cancelado". Query param: empleadoId
         /// </summary>
         [HttpPatch("{id}/cancelar")]
         public async Task<IActionResult> Cancelar(int id, [FromBody] MantenimientoCancelarDTO dto,
             [FromQuery] int empleadoId)
         {
             var (exito, mensaje) = await _service.CancelarAsync(id, empleadoId, dto);
+            if (!exito) return UnprocessableEntity(new { mensaje });
+            return Ok(new { mensaje });
+        }
 
-            if (!exito)
-                return UnprocessableEntity(new { mensaje });
+        // ================================================================
+        // PARTE 3 — Disponibilizar vehículo (acción del administrador)
+        // ================================================================
 
+        /// <summary>
+        /// PATCH /api/mantenimientos/{id}/disponibilizar
+        /// Cambia el Estado del vehículo a "disponible" luego de que
+        /// el empleado finalizó el trabajo.
+        /// Solo aplica si la orden está en estado "finalizado".
+        /// El botón en el frontend se deshabilita una vez que el vehículo
+        /// pasa a "disponible" (verificado via VehiculoEstado en el DTO).
+        /// </summary>
+        [HttpPatch("{id}/disponibilizar")]
+        public async Task<IActionResult> Disponibilizar(int id)
+        {
+            var (exito, mensaje) = await _service.DisponibilizarVehiculoAsync(id);
+            if (!exito) return UnprocessableEntity(new { mensaje });
             return Ok(new { mensaje });
         }
     }

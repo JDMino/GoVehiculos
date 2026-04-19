@@ -24,6 +24,7 @@ import {
   X,
   Loader2,
   Info,
+  History,
 } from "lucide-react";
 
 // ── Config visual ──────────────────────────────────────────────────────────
@@ -75,7 +76,6 @@ export default function MantenimientosList() {
   const [searchTerm, setSearchTerm]       = useState("");
   const [filtroEstado, setFiltroEstado]   = useState("todos");
 
-  // Modal socio — dual según estado del vehículo
   const [modalSocio, setModalSocio]       = useState({ open: false, vehiculo: null });
   const [formSocio, setFormSocio]         = useState(FORM_SOCIO_INICIAL);
   const [socioLoading, setSocioLoading]   = useState(false);
@@ -98,7 +98,6 @@ export default function MantenimientosList() {
 
   useEffect(() => {
     cargar();
-    // Polling cada 30s para que el admin vea actualizaciones de estado del empleado
     const intervalo = setInterval(() => cargar(true), 30_000);
     return () => clearInterval(intervalo);
   }, [cargar]);
@@ -119,7 +118,7 @@ export default function MantenimientosList() {
   const countMalo     = vehiculos.filter(v => v.estadoMecanico === "malo").length;
   const countConOrden = vehiculos.filter(v => v.tieneMantenimientoActivo).length;
 
-  // ── Lógica del modal socio ─────────────────────────────────────────────
+  // ── Lógica modal socio ─────────────────────────────────────────────────
   const abrirModalSocio = (vehiculo) => {
     setSocioError(null);
     setFormSocio(FORM_SOCIO_INICIAL);
@@ -134,32 +133,29 @@ export default function MantenimientosList() {
     }
   };
 
-  // Confirmar "pasar a fuera de servicio" (vehículo AÚN NO está en fuera_de_servicio)
   const confirmarFueraDeServicio = async () => {
-  const vehiculo = modalSocio.vehiculo;
-  setSocioLoading(true);
-  setSocioError(null);
-  try {
-      // 👉 ahora llamás al endpoint de Vehiculos
-        await api.post(`/vehiculos/${vehiculo.idVehiculo}/fuera-de-servicio`);
-      } catch {
-        setSocioError("No se pudo pasar a fuera de servicio.");
-      } finally {
-        setSocioLoading(false);
-        setModalSocio({ open: false, vehiculo: null });
-        cargar();
-      }
+    const vehiculo = modalSocio.vehiculo;
+    setSocioLoading(true);
+    setSocioError(null);
+    try {
+      await api.post(`/vehiculos/${vehiculo.idVehiculo}/fuera-de-servicio`);
+    } catch (e) {
+      setSocioError(e.response?.data?.mensaje || "Error al cambiar el estado del vehículo.");
+      setSocioLoading(false);
+      return;
+    }
+    setSocioLoading(false);
+    setModalSocio({ open: false, vehiculo: null });
+    cargar();
   };
 
-
-  // Confirmar "Habilitar Vehículo" — envía el form del mantenimiento del socio
   const confirmarHabilitar = async () => {
     const vehiculo = modalSocio.vehiculo;
 
-    if (!formSocio.tipo)            return setSocioError("El tipo es obligatorio.");
+    if (!formSocio.tipo)               return setSocioError("El tipo es obligatorio.");
     if (!formSocio.descripcion.trim()) return setSocioError("La descripción es obligatoria.");
-    if (!formSocio.prioridad)       return setSocioError("La prioridad es obligatoria.");
-    if (!formSocio.fechaRealizacion) return setSocioError("La fecha de realización es obligatoria.");
+    if (!formSocio.prioridad)          return setSocioError("La prioridad es obligatoria.");
+    if (!formSocio.fechaRealizacion)   return setSocioError("La fecha de realización es obligatoria.");
 
     setSocioLoading(true);
     setSocioError(null);
@@ -201,15 +197,28 @@ export default function MantenimientosList() {
                 </p>
               </div>
             </div>
-            {/* Botón refresh manual */}
-            <button
-              onClick={() => cargar(true)}
-              disabled={refreshing}
-              className="flex items-center gap-2 px-4 py-2 bg-white/10 hover:bg-white/20 border border-white/20 rounded-xl text-sm font-medium text-white transition-all disabled:opacity-50"
-            >
-              <RefreshCw className={`h-4 w-4 ${refreshing ? "animate-spin" : ""}`} />
-              {refreshing ? "Actualizando..." : "Actualizar"}
-            </button>
+
+            {/* Botones de acción del header */}
+            <div className="flex items-center gap-2 flex-wrap">
+              {/* Ver historial */}
+              <button
+                onClick={() => navigate("/mantenimientos/historial")}
+                className="flex items-center gap-2 px-4 py-2 bg-white/10 hover:bg-white/20 border border-white/20 rounded-xl text-sm font-medium text-white transition-all"
+              >
+                <History className="h-4 w-4" />
+                Ver Historial
+              </button>
+
+              {/* Refresh */}
+              <button
+                onClick={() => cargar(true)}
+                disabled={refreshing}
+                className="flex items-center gap-2 px-4 py-2 bg-white/10 hover:bg-white/20 border border-white/20 rounded-xl text-sm font-medium text-white transition-all disabled:opacity-50"
+              >
+                <RefreshCw className={`h-4 w-4 ${refreshing ? "animate-spin" : ""}`} />
+                {refreshing ? "Actualizando..." : "Actualizar"}
+              </button>
+            </div>
           </div>
 
           {/* Stats */}
@@ -366,7 +375,7 @@ export default function MantenimientosList() {
                       </div>
                     )}
 
-                    {/* Datos del mantenimiento activo — se actualiza con el estado real */}
+                    {/* Datos del mantenimiento activo */}
                     {tieneOrden && mant && (
                       <div className="mt-1 pt-3 border-t border-slate-100 space-y-2">
                         <div className="flex items-center justify-between">
@@ -437,8 +446,6 @@ export default function MantenimientosList() {
         <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-900/40 backdrop-blur-sm">
           <div className="bg-white rounded-2xl shadow-2xl w-full max-w-lg max-h-[90vh] overflow-y-auto">
             <div className="p-6">
-
-              {/* Cabecera del modal */}
               <div className="flex items-start justify-between mb-5">
                 <div className="flex items-start gap-4">
                   <div className={`p-3 rounded-full shrink-0 ${esFueraDeServicio ? "bg-emerald-100" : "bg-amber-100"}`}>
@@ -464,22 +471,18 @@ export default function MantenimientosList() {
               </div>
 
               {esFueraDeServicio ? (
-                // ── Caso: ya está fuera de servicio → form para habilitar ──
                 <>
                   <div className="flex items-start gap-2 bg-blue-50 border border-blue-200 rounded-xl px-4 py-3 mb-5">
                     <Info className="h-4 w-4 text-blue-500 shrink-0 mt-0.5" />
                     <p className="text-sm text-blue-700">
-                      El vehículo está <span className="font-semibold">fuera de servicio</span> porque el socio se hace cargo del mantenimiento.
-                      Completá los datos del trabajo realizado para habilitarlo nuevamente.
+                      El vehículo está <span className="font-semibold">fuera de servicio</span>. Completá los datos del
+                      trabajo realizado por el socio para habilitarlo nuevamente.
                     </p>
                   </div>
 
                   <div className="space-y-4">
-                    {/* Tipo */}
                     <div className="space-y-1.5">
-                      <label className="text-sm font-medium text-slate-700">
-                        Tipo <span className="text-red-500">*</span>
-                      </label>
+                      <label className="text-sm font-medium text-slate-700">Tipo <span className="text-red-500">*</span></label>
                       <div className="relative">
                         <select
                           value={formSocio.tipo}
@@ -494,11 +497,8 @@ export default function MantenimientosList() {
                       </div>
                     </div>
 
-                    {/* Descripción */}
                     <div className="space-y-1.5">
-                      <label className="text-sm font-medium text-slate-700">
-                        Descripción <span className="text-red-500">*</span>
-                      </label>
+                      <label className="text-sm font-medium text-slate-700">Descripción <span className="text-red-500">*</span></label>
                       <textarea
                         rows={3}
                         value={formSocio.descripcion}
@@ -508,11 +508,8 @@ export default function MantenimientosList() {
                       />
                     </div>
 
-                    {/* Prioridad */}
                     <div className="space-y-1.5">
-                      <label className="text-sm font-medium text-slate-700">
-                        Prioridad <span className="text-red-500">*</span>
-                      </label>
+                      <label className="text-sm font-medium text-slate-700">Prioridad <span className="text-red-500">*</span></label>
                       <div className="grid grid-cols-2 sm:grid-cols-4 gap-2">
                         {Object.entries(PRIORIDAD_CONFIG).map(([val, cfg]) => (
                           <button
@@ -531,11 +528,8 @@ export default function MantenimientosList() {
                       </div>
                     </div>
 
-                    {/* Fecha realización */}
                     <div className="space-y-1.5">
-                      <label className="text-sm font-medium text-slate-700">
-                        Fecha de realización <span className="text-red-500">*</span>
-                      </label>
+                      <label className="text-sm font-medium text-slate-700">Fecha de realización <span className="text-red-500">*</span></label>
                       <div className="relative">
                         <Calendar className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-slate-400" />
                         <input
@@ -547,7 +541,6 @@ export default function MantenimientosList() {
                       </div>
                     </div>
 
-                    {/* Realizado por — solo informativo */}
                     <div className="flex items-center gap-3 px-4 py-3 bg-slate-50 rounded-xl border border-slate-200">
                       <DollarSign className="h-4 w-4 text-slate-400 shrink-0" />
                       <p className="text-sm text-slate-600">
@@ -583,7 +576,6 @@ export default function MantenimientosList() {
                   </div>
                 </>
               ) : (
-                // ── Caso: aún no está fuera de servicio → confirmación ──
                 <>
                   <p className="text-sm text-slate-500 mb-2">
                     Este vehículo tiene el mantenimiento a cargo del socio propietario.

@@ -1,10 +1,4 @@
-import {
-  BrowserRouter,
-  Routes,
-  Route,
-  Navigate,
-  useLocation,
-} from "react-router-dom";
+import { BrowserRouter, Routes, Route, Navigate, useLocation } from "react-router-dom";
 import useAuthStore from "./context/AuthStore";
 
 // Componentes Globales
@@ -24,14 +18,15 @@ import VehiculoForm from "./pages/Vehiculos/VehiculoForm";
 import VehiculoEdit from "./pages/Vehiculos/VehiculoEdit";
 
 // Mantenimientos — vistas separadas por rol
-import MantenimientosList from "./pages/Mantenimientos/MantenimientosList";
-import MantenimientoForm from "./pages/Mantenimientos/MantenimientoForm";
-import MantenimientosEmpleado from "./pages/Mantenimientos/MantenimientosEmpleado";
+import MantenimientosList    from "./pages/Mantenimientos/MantenimientosList";
+import MantenimientoForm     from "./pages/Mantenimientos/MantenimientoForm";
+import MantenimientosEmpleado  from "./pages/Mantenimientos/MantenimientosEmpleado";
+import MantenimientosHistorial from "./pages/Mantenimientos/MantenimientosHistorial";
 
 const ROLES = {
-  CLIENTE: 1,
-  SOCIO: 2,
-  EMPLEADO: 3,
+  CLIENTE:       1,
+  SOCIO:         2,
+  EMPLEADO:      3,
   ADMINISTRADOR: 4,
 };
 
@@ -66,14 +61,11 @@ const Layout = ({ children }) => {
   );
 };
 
-// ── Componente selector de vista de mantenimiento según rol ─────────────────
-// El admin (rol 4) ve la lista de candidatos para generar órdenes.
-// El empleado (rol 3) ve sus mantenimientos asignados.
+// ── Selector de vista de mantenimiento según rol ────────────────────────────
 const MantenimientosRouter = () => {
   const { user } = useAuthStore();
   if (user?.rolId === ROLES.ADMINISTRADOR) return <MantenimientosList />;
-  if (user?.rolId === ROLES.EMPLEADO)
-    return <MantenimientosEmpleado user={user} />;
+  if (user?.rolId === ROLES.EMPLEADO)      return <MantenimientosEmpleado user={user} />;
   return <Navigate to="/home" replace />;
 };
 
@@ -87,17 +79,15 @@ export default function App() {
           <Route path="/" element={<Navigate to="/home" replace />} />
 
           {/* Rutas públicas */}
-          <Route path="/home" element={<Home />} />
-          <Route path="/login" element={<Login />} />
+          <Route path="/home"     element={<Home />}     />
+          <Route path="/login"    element={<Login />}    />
           <Route path="/register" element={<Register />} />
 
           {/* Dashboard — empleado y administrador */}
           <Route
             path="/dashboard"
             element={
-              <ProtectedRoute
-                allowedRoles={[ROLES.EMPLEADO, ROLES.ADMINISTRADOR]}
-              >
+              <ProtectedRoute allowedRoles={[ROLES.EMPLEADO, ROLES.ADMINISTRADOR]}>
                 <Dashboard />
               </ProtectedRoute>
             }
@@ -107,14 +97,7 @@ export default function App() {
           <Route
             path="/vehiculos"
             element={
-              <ProtectedRoute
-                allowedRoles={[
-                  ROLES.CLIENTE,
-                  ROLES.SOCIO,
-                  ROLES.EMPLEADO,
-                  ROLES.ADMINISTRADOR,
-                ]}
-              >
+              <ProtectedRoute allowedRoles={[ROLES.CLIENTE, ROLES.SOCIO, ROLES.EMPLEADO, ROLES.ADMINISTRADOR]}>
                 <VehiculosList />
               </ProtectedRoute>
             }
@@ -164,19 +147,27 @@ export default function App() {
 
           {/* ── MANTENIMIENTOS ─────────────────────────────────────────── */}
 
-          {/* Ruta principal — el componente selector decide qué vista mostrar según rol */}
+          {/* Ruta principal — selector por rol */}
           <Route
             path="/mantenimientos"
             element={
-              <ProtectedRoute
-                allowedRoles={[ROLES.EMPLEADO, ROLES.ADMINISTRADOR]}
-              >
+              <ProtectedRoute allowedRoles={[ROLES.EMPLEADO, ROLES.ADMINISTRADOR]}>
                 <MantenimientosRouter />
               </ProtectedRoute>
             }
           />
 
-          {/* Crear orden — solo el administrador puede generar órdenes */}
+          {/* Historial — solo administrador */}
+          <Route
+            path="/mantenimientos/historial"
+            element={
+              <ProtectedRoute allowedRoles={[ROLES.ADMINISTRADOR]}>
+                <MantenimientosHistorial />
+              </ProtectedRoute>
+            }
+          />
+
+          {/* Crear orden — solo administrador */}
           <Route
             path="/mantenimientos/nuevo/:vehiculoId"
             element={
