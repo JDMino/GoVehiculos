@@ -38,7 +38,7 @@
     }
 
     /// <summary>
-    /// Resumen del mantenimiento activo de un vehículo, para mostrar en la card.
+    /// Resumen del mantenimiento activo de un vehículo
     /// </summary>
     public class MantenimientoActivoDTO
     {

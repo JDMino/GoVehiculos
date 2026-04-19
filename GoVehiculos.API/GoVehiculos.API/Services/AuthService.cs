@@ -7,6 +7,7 @@ using System.IdentityModel.Tokens.Jwt;
 using System.Security.Claims;
 using System.Text;
 
+
 namespace GoVehiculos.API.Services
 {
     public class AuthService
@@ -14,11 +15,13 @@ namespace GoVehiculos.API.Services
         private readonly ApplicationDbContext _context;
         private readonly IConfiguration _config;
 
+
         public AuthService(ApplicationDbContext context, IConfiguration config)
         {
             _context = context;
             _config = config;
         }
+
 
         public async Task<LoginResponse?> LoginAsync(LoginRequest request)
         {
@@ -26,8 +29,10 @@ namespace GoVehiculos.API.Services
                 .Include(u => u.Rol)
                 .FirstOrDefaultAsync(u => u.Email == request.Email);
 
+
             if (user == null || !BCrypt.Net.BCrypt.Verify(request.Password, user.PasswordHash))
                 return null;
+
 
             if (!user.Activo)
             {
@@ -35,6 +40,7 @@ namespace GoVehiculos.API.Services
                 {
                     ErrorMessage = "Tu cuenta está inactiva. Contacta al administrador.",
                     Token = string.Empty,
+                    IdUsuario = user.IdUsuario,   
                     RolId = user.RolId,
                     Nombre = user.Nombre,
                     Apellido = user.Apellido,
@@ -42,14 +48,19 @@ namespace GoVehiculos.API.Services
                 };
             }
 
+
+
+
             var claims = new[]
             {
                 new Claim(JwtRegisteredClaimNames.Sub, user.Email),
                 new Claim("rol_id", user.RolId.ToString())
             };
 
+
             var key = new SymmetricSecurityKey(Encoding.UTF8.GetBytes(_config["Jwt:Key"]));
             var creds = new SigningCredentials(key, SecurityAlgorithms.HmacSha256);
+
 
             var token = new JwtSecurityToken(
                 issuer: _config["Jwt:Issuer"],
@@ -59,15 +70,18 @@ namespace GoVehiculos.API.Services
                 signingCredentials: creds
             );
 
+
             return new LoginResponse
             {
                 Token = new JwtSecurityTokenHandler().WriteToken(token),
+                IdUsuario = user.IdUsuario,
                 RolId = user.RolId,
                 Nombre = user.Nombre,
                 Apellido = user.Apellido,
                 Email = user.Email
             };
         }
+
 
         public async Task<Usuario> RegisterAsync(RegisterRequest request)
         {
@@ -81,6 +95,7 @@ namespace GoVehiculos.API.Services
                 RolId = request.RolId,
                 DireccionId = request.DireccionId
             };
+
 
             _context.Usuarios.Add(user);
             await _context.SaveChangesAsync();

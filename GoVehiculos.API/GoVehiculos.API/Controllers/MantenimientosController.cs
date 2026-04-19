@@ -17,8 +17,15 @@ namespace GoVehiculos.API.Controllers
             _service = service;
         }
 
-        // GET /api/mantenimientos/candidatos
-        // Devuelve vehículos con estadoMecanico "regular" o "malo" para mostrar en la lista
+        // ================================================================
+        // PARTE 1 — Endpoints del administrador
+        // ================================================================
+
+        /// <summary>
+        /// GET /api/mantenimientos/candidatos
+        /// Vehículos con estadoMecanico "regular" o "malo",
+        /// enriquecidos con su orden activa si existe.
+        /// </summary>
         [HttpGet("candidatos")]
         public async Task<IActionResult> GetCandidatos()
         {
@@ -26,8 +33,10 @@ namespace GoVehiculos.API.Controllers
             return Ok(vehiculos);
         }
 
-        // GET /api/mantenimientos
-        // Devuelve todas las órdenes de mantenimiento generadas
+        /// <summary>
+        /// GET /api/mantenimientos
+        /// Todas las órdenes de mantenimiento (admin / reportes).
+        /// </summary>
         [HttpGet]
         public async Task<IActionResult> GetAll()
         {
@@ -35,7 +44,9 @@ namespace GoVehiculos.API.Controllers
             return Ok(resultado);
         }
 
-        // GET /api/mantenimientos/{id}
+        /// <summary>
+        /// GET /api/mantenimientos/{id}
+        /// </summary>
         [HttpGet("{id}")]
         public async Task<IActionResult> GetById(int id)
         {
@@ -44,26 +55,26 @@ namespace GoVehiculos.API.Controllers
             return Ok(resultado);
         }
 
-        // POST /api/mantenimientos
-        // Aplica las reglas de negocio:
-        //   - Si MantenimientoACargoDe == "socio" → 422 con mensaje, vehículo pasa a fuera_de_servicio
-        //   - Si MantenimientoACargoDe == "empresa" → 201 con la orden creada, vehículo pasa a mantenimiento
+        /// <summary>
+        /// POST /api/mantenimientos
+        /// Crea una orden de mantenimiento (acción del administrador).
+        /// 422 si el socio se hace cargo o ya hay una orden activa.
+        /// </summary>
         [HttpPost]
         public async Task<IActionResult> Create([FromBody] MantenimientoCreateDTO dto)
         {
             var (exito, mensaje, orden) = await _service.CreateAsync(dto);
 
             if (!exito)
-            {
-                // 422 Unprocessable Entity: la solicitud fue válida pero no se pudo procesar
-                // por una regla de negocio (el socio se hace cargo del mantenimiento)
                 return UnprocessableEntity(new { mensaje });
-            }
 
             return CreatedAtAction(nameof(GetById), new { id = orden!.IdMantenimiento }, orden);
         }
 
-        // PUT /api/mantenimientos/{id}
+        /// <summary>
+        /// PUT /api/mantenimientos/{id}
+        /// Actualización general (admin).
+        /// </summary>
         [HttpPut("{id}")]
         public async Task<IActionResult> Update(int id, [FromBody] MantenimientoUpdateDTO dto)
         {
@@ -72,13 +83,83 @@ namespace GoVehiculos.API.Controllers
             return NoContent();
         }
 
-        // DELETE /api/mantenimientos/{id}
+        /// <summary>
+        /// DELETE /api/mantenimientos/{id}
+        /// </summary>
         [HttpDelete("{id}")]
         public async Task<IActionResult> Delete(int id)
         {
             var ok = await _service.DeleteAsync(id);
             if (!ok) return NotFound();
             return NoContent();
+        }
+
+        // ================================================================
+        // PARTE 2 — Endpoints del empleado
+        // ================================================================
+
+        /// <summary>
+        /// GET /api/mantenimientos/empleado/{empleadoId}
+        /// Mantenimientos asignados a un empleado específico (activos + terminales).
+        /// </summary>
+        [HttpGet("empleado/{empleadoId}")]
+        public async Task<IActionResult> GetByEmpleado(int empleadoId)
+        {
+            var resultado = await _service.GetByEmpleadoAsync(empleadoId);
+            return Ok(resultado);
+        }
+
+        /// <summary>
+        /// PATCH /api/mantenimientos/{id}/iniciar
+        /// Inicia el mantenimiento: "pendiente" → "iniciado".
+        /// Body: { "empleadoId": N }
+        /// </summary>
+        [HttpPatch("{id}/iniciar")]
+        public async Task<IActionResult> Iniciar(int id, [FromBody] MantenimientoIniciarDTO dto,
+            [FromQuery] int empleadoId)
+        {
+            var (exito, mensaje) = await _service.IniciarAsync(id, empleadoId);
+
+            if (!exito)
+                return UnprocessableEntity(new { mensaje });
+
+            return Ok(new { mensaje });
+        }
+
+        /// <summary>
+        /// PATCH /api/mantenimientos/{id}/finalizar
+        /// Finaliza el mantenimiento: "iniciado" → "finalizado".
+        /// Requiere descripción, fechaRealizacion, costo y realizadoPor.
+        /// Query param: empleadoId
+        /// </summary>
+        [HttpPatch("{id}/finalizar")]
+        public async Task<IActionResult> Finalizar(int id, [FromBody] MantenimientoFinalizarDTO dto,
+            [FromQuery] int empleadoId)
+        {
+            var (exito, mensaje) = await _service.FinalizarAsync(id, empleadoId, dto);
+
+            if (!exito)
+                return UnprocessableEntity(new { mensaje });
+
+            return Ok(new { mensaje });
+        }
+
+        /// <summary>
+        /// PATCH /api/mantenimientos/{id}/cancelar
+        /// Cancela el mantenimiento: "iniciado" → "cancelado".
+        /// El empleado puede editar la descripción para agregar el motivo.
+        /// Query param: empleadoId
+        /// </summary>
+        [HttpPatch("{id}/cancelar")]
+        public async Task<IActionResult> Cancelar(int id, [FromBody] MantenimientoCancelarDTO dto,
+            [FromQuery] int empleadoId)
+        {
+            var (exito, mensaje) = await _service.CancelarAsync(id, empleadoId, dto);
+
+            if (!exito)
+                return UnprocessableEntity(new { mensaje });
+
+            return Ok(new { mensaje });
         }
     }
 }

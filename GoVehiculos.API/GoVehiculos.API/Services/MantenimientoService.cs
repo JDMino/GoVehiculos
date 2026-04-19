@@ -9,52 +9,50 @@ namespace GoVehiculos.API.Services
     {
         private readonly ApplicationDbContext _context;
 
-        // Estados que se consideran "activos" — bloquean generar una nueva orden
-        private static readonly string[] EstadosActivos = ["pendiente", "en_proceso"];
+        // Estados que bloquean generar una nueva orden sobre el mismo vehículo
+        private static readonly string[] EstadosActivos = ["pendiente", "en_proceso", "iniciado"];
+
+        // Estados terminales: el empleado ya no puede operar sobre ellos
+        private static readonly string[] EstadosTerminales = ["finalizado", "cancelado"];
 
         public MantenimientoService(ApplicationDbContext context)
         {
             _context = context;
         }
 
-        // ============================
-        // Vehículos candidatos para mantenimiento
-        // Condición: activos con estadoMecanico "regular" o "malo"
-        // Enriquecidos con su mantenimiento activo si existe
-        // ============================
+        // ================================================================
+        // PARTE 1 — Vista del administrador
+        // ================================================================
+
+        /// <summary>
+        /// Vehículos candidatos a mantenimiento (estadoMecanico "regular" o "malo"),
+        /// enriquecidos con su orden activa si existe.
+        /// </summary>
         public async Task<IEnumerable<VehiculoCandidatoDTO>> GetVehiculosCandidatosAsync()
         {
-            // Traer vehículos candidatos con sus relaciones
             var vehiculos = await _context.Vehiculos
-                .Include(v => v.Modelo)
-                    .ThenInclude(m => m.Marca)
+                .Include(v => v.Modelo).ThenInclude(m => m.Marca)
                 .Include(v => v.UbicacionActual)
-                .Where(v =>
-                    v.Activo &&
-                    (v.EstadoMecanico == "regular" || v.EstadoMecanico == "malo"))
+                .Where(v => v.Activo &&
+                            (v.EstadoMecanico == "regular" || v.EstadoMecanico == "malo"))
                 .ToListAsync();
 
-            // Obtener los ids para buscar mantenimientos activos en una sola consulta
-            var vehiculoIds = vehiculos.Select(v => v.IdVehiculo).ToList();
+            var ids = vehiculos.Select(v => v.IdVehiculo).ToList();
 
             var mantenimientosActivos = await _context.Mantenimientos
                 .Include(m => m.Empleado)
-                .Where(m =>
-                    vehiculoIds.Contains(m.VehiculoId) &&
-                    EstadosActivos.Contains(m.Estado))
-                // Si un vehículo tuviera más de uno, tomamos el más reciente
+                .Where(m => ids.Contains(m.VehiculoId) &&
+                            EstadosActivos.Contains(m.Estado))
                 .OrderByDescending(m => m.IdMantenimiento)
                 .ToListAsync();
 
-            // Indexar por vehiculoId para lookup O(1)
-            var mantenimientoPorVehiculo = mantenimientosActivos
+            var mantPorVehiculo = mantenimientosActivos
                 .GroupBy(m => m.VehiculoId)
                 .ToDictionary(g => g.Key, g => g.First());
 
             return vehiculos.Select(v =>
             {
-                mantenimientoPorVehiculo.TryGetValue(v.IdVehiculo, out var mant);
-
+                mantPorVehiculo.TryGetValue(v.IdVehiculo, out var mant);
                 return new VehiculoCandidatoDTO
                 {
                     IdVehiculo = v.IdVehiculo,
@@ -76,7 +74,6 @@ namespace GoVehiculos.API.Services
                     MarcaNombre = v.Modelo?.Marca?.Nombre ?? string.Empty,
                     UbicacionActualId = v.UbicacionActualId,
                     UbicacionNombre = v.UbicacionActual?.Nombre,
-
                     MantenimientoActivo = mant == null ? null : new MantenimientoActivoDTO
                     {
                         IdMantenimiento = mant.IdMantenimiento,
@@ -93,12 +90,11 @@ namespace GoVehiculos.API.Services
             });
         }
 
+        /// <summary>Todas las órdenes (para vistas de admin o reportes).</summary>
         public async Task<IEnumerable<MantenimientoResponseDTO>> GetAllAsync()
         {
             return await _context.Mantenimientos
-                .Include(m => m.Vehiculo)
-                    .ThenInclude(v => v.Modelo)
-                        .ThenInclude(mo => mo.Marca)
+                .Include(m => m.Vehiculo).ThenInclude(v => v.Modelo).ThenInclude(mo => mo.Marca)
                 .Include(m => m.Empleado)
                 .Select(m => ToResponseDTO(m))
                 .ToListAsync();
@@ -107,23 +103,21 @@ namespace GoVehiculos.API.Services
         public async Task<MantenimientoResponseDTO?> GetByIdAsync(int id)
         {
             var m = await _context.Mantenimientos
-                .Include(m => m.Vehiculo)
-                    .ThenInclude(v => v.Modelo)
-                        .ThenInclude(mo => mo.Marca)
+                .Include(m => m.Vehiculo).ThenInclude(v => v.Modelo).ThenInclude(mo => mo.Marca)
                 .Include(m => m.Empleado)
                 .FirstOrDefaultAsync(m => m.IdMantenimiento == id);
 
             return m == null ? null : ToResponseDTO(m);
         }
 
-        // ============================
-        // Crear orden de mantenimiento
-        // Reglas de negocio:
-        //   - Solo candidatos con estadoMecanico "regular" o "malo"
-        //   - Si ya tiene un mantenimiento activo → no se puede crear otra orden
-        //   - Si MantenimientoACargoDe == "socio" → vehículo pasa a "fuera_de_servicio", sin orden
-        //   - Si MantenimientoACargoDe == "empresa" → orden creada, vehículo pasa a "mantenimiento"
-        // ============================
+        /// <summary>
+        /// Crea una orden de mantenimiento (acción del administrador).
+        /// Reglas:
+        ///   - estadoMecanico debe ser "regular" o "malo"
+        ///   - No puede haber otra orden activa para el mismo vehículo
+        ///   - Si MantenimientoACargoDe == "socio" → fuera_de_servicio, sin orden
+        ///   - Si MantenimientoACargoDe == "empresa" → orden creada, vehículo → "mantenimiento"
+        /// </summary>
         public async Task<(bool exito, string mensaje, MantenimientoResponseDTO? dto)> CreateAsync(MantenimientoCreateDTO dto)
         {
             var vehiculo = await _context.Vehiculos.FindAsync(dto.VehiculoId);
@@ -134,16 +128,13 @@ namespace GoVehiculos.API.Services
             if (vehiculo.EstadoMecanico != "regular" && vehiculo.EstadoMecanico != "malo")
                 return (false, "El vehículo no requiere mantenimiento según su estado mecánico.", null);
 
-            // Verificar si ya tiene una orden activa
             var tieneActivo = await _context.Mantenimientos
-                .AnyAsync(m =>
-                    m.VehiculoId == dto.VehiculoId &&
-                    EstadosActivos.Contains(m.Estado));
+                .AnyAsync(m => m.VehiculoId == dto.VehiculoId &&
+                               EstadosActivos.Contains(m.Estado));
 
             if (tieneActivo)
                 return (false, "El vehículo ya tiene una orden de mantenimiento activa.", null);
 
-            // Regla: socio se hace cargo → fuera_de_servicio, sin orden
             if (vehiculo.MantenimientoACargoDe == "socio")
             {
                 vehiculo.Estado = "fuera_de_servicio";
@@ -153,7 +144,6 @@ namespace GoVehiculos.API.Services
                     null);
             }
 
-            // Crear orden
             var mantenimiento = new Mantenimiento
             {
                 VehiculoId = dto.VehiculoId,
@@ -167,7 +157,6 @@ namespace GoVehiculos.API.Services
                 RealizadoPor = string.Empty
             };
 
-            // Vehículo pasa a "mantenimiento" de manera fija
             vehiculo.Estado = "mantenimiento";
 
             _context.Mantenimientos.Add(mantenimiento);
@@ -205,6 +194,111 @@ namespace GoVehiculos.API.Services
             return true;
         }
 
+        // ================================================================
+        // PARTE 2 — Vista del empleado
+        // ================================================================
+
+        /// <summary>
+        /// Mantenimientos asignados a un empleado específico.
+        /// Devuelve todos (activos y terminales) para que el empleado
+        /// vea el historial con el botón "Ver Detalle" en los terminales.
+        /// </summary>
+        public async Task<IEnumerable<MantenimientoResponseDTO>> GetByEmpleadoAsync(int empleadoId)
+        {
+            return await _context.Mantenimientos
+                .Include(m => m.Vehiculo).ThenInclude(v => v.Modelo).ThenInclude(mo => mo.Marca)
+                .Include(m => m.Empleado)
+                .Where(m => m.EmpleadoId == empleadoId)
+                .OrderByDescending(m => m.IdMantenimiento)
+                .Select(m => ToResponseDTO(m))
+                .ToListAsync();
+        }
+
+        /// <summary>
+        /// Inicia un mantenimiento: estado "pendiente" → "iniciado".
+        /// Solo el empleado asignado puede iniciarlo.
+        /// </summary>
+        public async Task<(bool exito, string mensaje)> IniciarAsync(int id, int empleadoId)
+        {
+            var m = await _context.Mantenimientos.FindAsync(id);
+
+            if (m == null)
+                return (false, "Mantenimiento no encontrado.");
+
+            if (m.EmpleadoId != empleadoId)
+                return (false, "No tenés permiso para operar este mantenimiento.");
+
+            if (m.Estado != "pendiente")
+                return (false, $"El mantenimiento no puede iniciarse porque está en estado '{m.Estado}'.");
+
+            m.Estado = "iniciado";
+            await _context.SaveChangesAsync();
+            return (true, "Mantenimiento iniciado correctamente.");
+        }
+
+        /// <summary>
+        /// Finaliza un mantenimiento: estado "iniciado" → "finalizado".
+        /// Valida que FechaRealizacion no sea anterior a FechaProgramada.
+        /// Valida que Costo no sea negativo.
+        /// El estado del vehículo NO cambia (sigue en "mantenimiento").
+        /// </summary>
+        public async Task<(bool exito, string mensaje)> FinalizarAsync(int id, int empleadoId, MantenimientoFinalizarDTO dto)
+        {
+            var m = await _context.Mantenimientos.FindAsync(id);
+
+            if (m == null)
+                return (false, "Mantenimiento no encontrado.");
+
+            if (m.EmpleadoId != empleadoId)
+                return (false, "No tenés permiso para operar este mantenimiento.");
+
+            if (m.Estado != "iniciado")
+                return (false, $"El mantenimiento no puede finalizarse porque está en estado '{m.Estado}'.");
+
+            if (dto.Costo < 0)
+                return (false, "El costo no puede ser negativo.");
+
+            if (m.FechaProgramada.HasValue && dto.FechaRealizacion < m.FechaProgramada.Value)
+                return (false, $"La fecha de realización no puede ser anterior a la fecha programada ({m.FechaProgramada.Value:dd/MM/yyyy}).");
+
+            m.Descripcion = dto.Descripcion;
+            m.FechaRealizacion = dto.FechaRealizacion;
+            m.Costo = dto.Costo;
+            m.RealizadoPor = dto.RealizadoPor;
+            m.Estado = "finalizado";
+
+            await _context.SaveChangesAsync();
+            return (true, "Mantenimiento finalizado correctamente.");
+        }
+
+        /// <summary>
+        /// Cancela un mantenimiento: estado "iniciado" → "cancelado".
+        /// El empleado puede editar la descripción para agregar el motivo.
+        /// El estado del vehículo NO cambia.
+        /// </summary>
+        public async Task<(bool exito, string mensaje)> CancelarAsync(int id, int empleadoId, MantenimientoCancelarDTO dto)
+        {
+            var m = await _context.Mantenimientos.FindAsync(id);
+
+            if (m == null)
+                return (false, "Mantenimiento no encontrado.");
+
+            if (m.EmpleadoId != empleadoId)
+                return (false, "No tenés permiso para operar este mantenimiento.");
+
+            if (m.Estado != "iniciado")
+                return (false, $"El mantenimiento no puede cancelarse porque está en estado '{m.Estado}'.");
+
+            m.Descripcion = dto.Descripcion;
+            m.Estado = "cancelado";
+
+            await _context.SaveChangesAsync();
+            return (true, "Mantenimiento cancelado.");
+        }
+
+        // ================================================================
+        // Mapeo privado
+        // ================================================================
         private static MantenimientoResponseDTO ToResponseDTO(Mantenimiento m) => new()
         {
             IdMantenimiento = m.IdMantenimiento,

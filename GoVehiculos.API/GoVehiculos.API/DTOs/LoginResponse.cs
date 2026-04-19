@@ -8,5 +8,6 @@ namespace GoVehiculos.API.DTOs
         public string Apellido { get; set; } = string.Empty;
         public string Email { get; set; } = string.Empty;
         public string? ErrorMessage { get; set; }
+        public int IdUsuario { get; set; }
     }
 }

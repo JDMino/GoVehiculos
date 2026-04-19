@@ -22,29 +22,36 @@ import UsuarioEdit from "./pages/Usuarios/UsuarioEdit";
 import VehiculosList from "./pages/Vehiculos/VehiculosList";
 import VehiculoForm from "./pages/Vehiculos/VehiculoForm";
 import VehiculoEdit from "./pages/Vehiculos/VehiculoEdit";
+
+// Mantenimientos — vistas separadas por rol
 import MantenimientosList from "./pages/Mantenimientos/MantenimientosList";
 import MantenimientoForm from "./pages/Mantenimientos/MantenimientoForm";
+import MantenimientosEmpleado from "./pages/Mantenimientos/MantenimientosEmpleado";
 
-// 1. COMPONENTE DE PROTECCIÓN: Verifica sesión y roles
+const ROLES = {
+  CLIENTE: 1,
+  SOCIO: 2,
+  EMPLEADO: 3,
+  ADMINISTRADOR: 4,
+};
+
+// ── Protección de rutas por rol ─────────────────────────────────────────────
 const ProtectedRoute = ({ allowedRoles, children }) => {
   const { isAuthenticated, user } = useAuthStore();
 
-  if (!isAuthenticated) {
-    return <Navigate to="/login" replace />;
-  }
+  if (!isAuthenticated) return <Navigate to="/login" replace />;
 
-  const userRolId = user?.rolId || 1;
-  if (allowedRoles && !allowedRoles.includes(userRolId)) {
+  const userRolId = user?.rolId || ROLES.CLIENTE;
+  if (allowedRoles && !allowedRoles.includes(userRolId))
     return <Navigate to="/home" replace />;
-  }
 
   return children;
 };
 
-// 2. COMPONENTE LAYOUT: Renderiza Navbar/Footer condicionalmente
+// ── Layout con Navbar/Footer condicional ────────────────────────────────────
 const Layout = ({ children }) => {
   const location = useLocation();
-  const { user, logout } = useAuthStore(); // 👈 obtenemos user y logout del store
+  const { user, logout } = useAuthStore();
   const isAuthPage =
     location.pathname === "/login" || location.pathname === "/register";
 
@@ -52,7 +59,6 @@ const Layout = ({ children }) => {
 
   return (
     <div className="flex flex-col min-h-screen bg-gray-50">
-      {/* Pasamos user y logout al Navbar */}
       <Navbar user={user} onLogout={logout} />
       <main className="flex-grow">{children}</main>
       <Footer />
@@ -60,34 +66,55 @@ const Layout = ({ children }) => {
   );
 };
 
+// ── Componente selector de vista de mantenimiento según rol ─────────────────
+// El admin (rol 4) ve la lista de candidatos para generar órdenes.
+// El empleado (rol 3) ve sus mantenimientos asignados.
+const MantenimientosRouter = () => {
+  const { user } = useAuthStore();
+  if (user?.rolId === ROLES.ADMINISTRADOR) return <MantenimientosList />;
+  if (user?.rolId === ROLES.EMPLEADO)
+    return <MantenimientosEmpleado user={user} />;
+  return <Navigate to="/home" replace />;
+};
+
+// ── App ─────────────────────────────────────────────────────────────────────
 export default function App() {
   return (
     <BrowserRouter>
       <Layout>
         <Routes>
-          {/* Redirección por defecto */}
+          {/* Redirección raíz */}
           <Route path="/" element={<Navigate to="/home" replace />} />
 
-          {/* Rutas Públicas */}
+          {/* Rutas públicas */}
           <Route path="/home" element={<Home />} />
           <Route path="/login" element={<Login />} />
           <Route path="/register" element={<Register />} />
 
-          {/* Dashboard (solo roles 3 y 4) */}
+          {/* Dashboard — empleado y administrador */}
           <Route
             path="/dashboard"
             element={
-              <ProtectedRoute allowedRoles={[3, 4]}>
+              <ProtectedRoute
+                allowedRoles={[ROLES.EMPLEADO, ROLES.ADMINISTRADOR]}
+              >
                 <Dashboard />
               </ProtectedRoute>
             }
           />
 
-          {/* MÓDULO VEHÍCULOS (Accesible por todos los logueados) */}
+          {/* ── VEHÍCULOS ──────────────────────────────────────────────── */}
           <Route
             path="/vehiculos"
             element={
-              <ProtectedRoute allowedRoles={[1, 2, 3, 4]}>
+              <ProtectedRoute
+                allowedRoles={[
+                  ROLES.CLIENTE,
+                  ROLES.SOCIO,
+                  ROLES.EMPLEADO,
+                  ROLES.ADMINISTRADOR,
+                ]}
+              >
                 <VehiculosList />
               </ProtectedRoute>
             }
@@ -95,7 +122,7 @@ export default function App() {
           <Route
             path="/vehiculos/nuevo"
             element={
-              <ProtectedRoute allowedRoles={[2, 4]}>
+              <ProtectedRoute allowedRoles={[ROLES.SOCIO, ROLES.ADMINISTRADOR]}>
                 <VehiculoForm />
               </ProtectedRoute>
             }
@@ -103,17 +130,17 @@ export default function App() {
           <Route
             path="/vehiculos/editar/:id"
             element={
-              <ProtectedRoute allowedRoles={[2, 4]}>
+              <ProtectedRoute allowedRoles={[ROLES.SOCIO, ROLES.ADMINISTRADOR]}>
                 <VehiculoEdit />
               </ProtectedRoute>
             }
           />
 
-          {/* MÓDULO USUARIOS (Solo Administrador rol 4) */}
+          {/* ── USUARIOS ───────────────────────────────────────────────── */}
           <Route
             path="/usuarios"
             element={
-              <ProtectedRoute allowedRoles={[4]}>
+              <ProtectedRoute allowedRoles={[ROLES.ADMINISTRADOR]}>
                 <UsuariosList />
               </ProtectedRoute>
             }
@@ -121,7 +148,7 @@ export default function App() {
           <Route
             path="/usuarios/nuevo"
             element={
-              <ProtectedRoute allowedRoles={[4]}>
+              <ProtectedRoute allowedRoles={[ROLES.ADMINISTRADOR]}>
                 <UsuarioForm />
               </ProtectedRoute>
             }
@@ -129,31 +156,37 @@ export default function App() {
           <Route
             path="/usuarios/editar/:id"
             element={
-              <ProtectedRoute allowedRoles={[4]}>
+              <ProtectedRoute allowedRoles={[ROLES.ADMINISTRADOR]}>
                 <UsuarioEdit />
               </ProtectedRoute>
             }
           />
 
-          {/* MÓDULO MANTENIMIENTOS (solo roles 3 y 4) */}
+          {/* ── MANTENIMIENTOS ─────────────────────────────────────────── */}
+
+          {/* Ruta principal — el componente selector decide qué vista mostrar según rol */}
           <Route
             path="/mantenimientos"
             element={
-              <ProtectedRoute allowedRoles={[3, 4]}>
-                <MantenimientosList />
+              <ProtectedRoute
+                allowedRoles={[ROLES.EMPLEADO, ROLES.ADMINISTRADOR]}
+              >
+                <MantenimientosRouter />
               </ProtectedRoute>
             }
           />
+
+          {/* Crear orden — solo el administrador puede generar órdenes */}
           <Route
             path="/mantenimientos/nuevo/:vehiculoId"
             element={
-              <ProtectedRoute allowedRoles={[3, 4]}>
+              <ProtectedRoute allowedRoles={[ROLES.ADMINISTRADOR]}>
                 <MantenimientoForm />
               </ProtectedRoute>
             }
           />
 
-          {/* Fallback para cualquier otra ruta inexistente */}
+          {/* Fallback */}
           <Route path="*" element={<Navigate to="/home" replace />} />
         </Routes>
       </Layout>
