@@ -1,4 +1,4 @@
-﻿using GoVehiculos.API.DTOs;
+using GoVehiculos.API.DTOs;
 using GoVehiculos.API.Services;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
@@ -58,17 +58,42 @@ namespace GoVehiculos.API.Controllers
         /// <summary>
         /// POST /api/mantenimientos
         /// Crea una orden de mantenimiento (acción del administrador).
+        /// EmpleadoId y FechaProgramada son obligatorios.
         /// 422 si el socio se hace cargo o ya hay una orden activa.
         /// </summary>
         [HttpPost]
         public async Task<IActionResult> Create([FromBody] MantenimientoCreateDTO dto)
         {
+            // ModelState valida los [Required] del DTO antes de llegar al service
+            if (!ModelState.IsValid)
+                return BadRequest(ModelState);
+
             var (exito, mensaje, orden) = await _service.CreateAsync(dto);
 
             if (!exito)
                 return UnprocessableEntity(new { mensaje });
 
             return CreatedAtAction(nameof(GetById), new { id = orden!.IdMantenimiento }, orden);
+        }
+
+        /// <summary>
+        /// POST /api/mantenimientos/habilitar-socio
+        /// Registra el mantenimiento realizado por el socio y devuelve el vehículo a disponible.
+        /// Solo aplica cuando el vehículo está en "fuera_de_servicio" por cargo del socio.
+        /// RealizadoPor es fijo = "A cargo del Socio" — el service lo asigna, no el frontend.
+        /// </summary>
+        [HttpPost("habilitar-socio")]
+        public async Task<IActionResult> HabilitarSocio([FromBody] HabilitarVehiculoSocioDTO dto)
+        {
+            if (!ModelState.IsValid)
+                return BadRequest(ModelState);
+
+            var (exito, mensaje, registro) = await _service.HabilitarVehiculoSocioAsync(dto);
+
+            if (!exito)
+                return UnprocessableEntity(new { mensaje });
+
+            return Ok(new { mensaje, registro });
         }
 
         /// <summary>
@@ -112,7 +137,7 @@ namespace GoVehiculos.API.Controllers
         /// <summary>
         /// PATCH /api/mantenimientos/{id}/iniciar
         /// Inicia el mantenimiento: "pendiente" → "iniciado".
-        /// Body: { "empleadoId": N }
+        /// Query param: empleadoId
         /// </summary>
         [HttpPatch("{id}/iniciar")]
         public async Task<IActionResult> Iniciar(int id, [FromBody] MantenimientoIniciarDTO dto,
@@ -129,7 +154,6 @@ namespace GoVehiculos.API.Controllers
         /// <summary>
         /// PATCH /api/mantenimientos/{id}/finalizar
         /// Finaliza el mantenimiento: "iniciado" → "finalizado".
-        /// Requiere descripción, fechaRealizacion, costo y realizadoPor.
         /// Query param: empleadoId
         /// </summary>
         [HttpPatch("{id}/finalizar")]
@@ -147,7 +171,6 @@ namespace GoVehiculos.API.Controllers
         /// <summary>
         /// PATCH /api/mantenimientos/{id}/cancelar
         /// Cancela el mantenimiento: "iniciado" → "cancelado".
-        /// El empleado puede editar la descripción para agregar el motivo.
         /// Query param: empleadoId
         /// </summary>
         [HttpPatch("{id}/cancelar")]

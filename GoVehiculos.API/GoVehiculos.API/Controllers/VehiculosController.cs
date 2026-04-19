@@ -51,6 +51,15 @@ namespace GoVehiculos.API.Controllers
             return NoContent();
         }
 
+        [HttpPost("{id}/fuera-de-servicio")]
+        public async Task<IActionResult> PasarAFueraDeServicio(int id)
+        {
+            var result = await _service.PasarAFueraDeServicioAsync(id);
+            if (!result.exito) return BadRequest(result.mensaje);
+            return Ok(result.mensaje);
+        }
+
+
         // DELETE /api/vehiculos/{id}
         [HttpDelete("{id}")]
         public async Task<IActionResult> Delete(int id)
