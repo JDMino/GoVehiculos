@@ -50,6 +50,7 @@ builder.Services.AddScoped<MarcaService>();
 builder.Services.AddScoped<ModeloService>();
 builder.Services.AddScoped<UbicacionService>();
 
+builder.Services.AddScoped<MantenimientoService>();
 
 var app = builder.Build();
 

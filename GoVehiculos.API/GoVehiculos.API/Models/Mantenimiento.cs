@@ -1,22 +1,62 @@
+using GoVehiculos.API.Models;
 using System.ComponentModel.DataAnnotations;
+using System.ComponentModel.DataAnnotations.Schema;
+
+
 
 namespace GoVehiculos.API.Models
 {
+    [Table("Mantenimiento")]
     public class Mantenimiento
     {
         [Key]
+        [Column("id_mantenimiento")]
         public int IdMantenimiento { get; set; }
-        public int VehiculoId { get; set; }
-        public int? EmpleadoId { get; set; }
-        public string Tipo { get; set; } = string.Empty;
-        public string Descripcion { get; set; } = string.Empty;
-        public string Estado { get; set; } = "pendiente";
-        public string Prioridad { get; set; } = "media";
-        public DateTime? FechaProgramada { get; set; }
-        public DateTime? FechaRealizacion { get; set; }
-        public decimal Costo { get; set; } = 0;
-        public string RealizadoPor { get; set; } = "empresa";
 
+        [Column("vehiculo_id")]
+        public int VehiculoId { get; set; }
+
+        [Column("empleado_id")]
+        public int? EmpleadoId { get; set; }
+
+        [Required]
+        [MaxLength(30)]
+        [Column("tipo")]
+        public string Tipo { get; set; } = string.Empty;
+
+        [Required]
+        [MaxLength(500)]
+        [Column("descripcion")]
+        public string Descripcion { get; set; } = string.Empty;
+
+        [Required]
+        [MaxLength(20)]
+        [Column("estado")]
+        public string Estado { get; set; } = "pendiente";
+
+        [Required]
+        [MaxLength(20)]
+        [Column("prioridad")]
+        public string Prioridad { get; set; } = "media";
+
+        [Column("fecha_programada")]
+        public DateOnly? FechaProgramada { get; set; }
+
+        // Se completa cuando el trabajo se ejecuta, no al crear la orden
+        [Column("fecha_realizacion")]
+        public DateOnly? FechaRealizacion { get; set; }
+
+        [Column("costo")]
+        public decimal Costo { get; set; } = 0;
+
+        // Campo libre: nombre del taller, técnico externo, etc.
+        // Se completa cuando el trabajo se ejecuta, no al crear la orden
+        [Required]
+        [MaxLength(20)]
+        [Column("realizado_por")]
+        public string RealizadoPor { get; set; } = string.Empty;
+
+        // Navegación
         public Vehiculo? Vehiculo { get; set; }
         public Usuario? Empleado { get; set; }
     }

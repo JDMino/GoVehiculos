@@ -1,4 +1,10 @@
-import { BrowserRouter, Routes, Route, Navigate, useLocation } from "react-router-dom";
+import {
+  BrowserRouter,
+  Routes,
+  Route,
+  Navigate,
+  useLocation,
+} from "react-router-dom";
 import useAuthStore from "./context/AuthStore";
 
 // Componentes Globales
@@ -16,6 +22,8 @@ import UsuarioEdit from "./pages/Usuarios/UsuarioEdit";
 import VehiculosList from "./pages/Vehiculos/VehiculosList";
 import VehiculoForm from "./pages/Vehiculos/VehiculoForm";
 import VehiculoEdit from "./pages/Vehiculos/VehiculoEdit";
+import MantenimientosList from "./pages/Mantenimientos/MantenimientosList";
+import MantenimientoForm from "./pages/Mantenimientos/MantenimientoForm";
 
 // 1. COMPONENTE DE PROTECCIÓN: Verifica sesión y roles
 const ProtectedRoute = ({ allowedRoles, children }) => {
@@ -37,7 +45,8 @@ const ProtectedRoute = ({ allowedRoles, children }) => {
 const Layout = ({ children }) => {
   const location = useLocation();
   const { user, logout } = useAuthStore(); // 👈 obtenemos user y logout del store
-  const isAuthPage = location.pathname === "/login" || location.pathname === "/register";
+  const isAuthPage =
+    location.pathname === "/login" || location.pathname === "/register";
 
   if (isAuthPage) return <>{children}</>;
 
@@ -122,6 +131,24 @@ export default function App() {
             element={
               <ProtectedRoute allowedRoles={[4]}>
                 <UsuarioEdit />
+              </ProtectedRoute>
+            }
+          />
+
+          {/* MÓDULO MANTENIMIENTOS (solo roles 3 y 4) */}
+          <Route
+            path="/mantenimientos"
+            element={
+              <ProtectedRoute allowedRoles={[3, 4]}>
+                <MantenimientosList />
+              </ProtectedRoute>
+            }
+          />
+          <Route
+            path="/mantenimientos/nuevo/:vehiculoId"
+            element={
+              <ProtectedRoute allowedRoles={[3, 4]}>
+                <MantenimientoForm />
               </ProtectedRoute>
             }
           />

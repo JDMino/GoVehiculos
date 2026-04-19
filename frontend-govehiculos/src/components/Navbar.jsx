@@ -191,16 +191,23 @@ export default function Navbar({ user, onLogout, demoRole }) {
                       );
                     })}
                     {canSeeMantenimiento && (
-                      <span
-                        className="flex items-center px-4 py-2 rounded-lg text-sm font-medium text-slate-500 cursor-not-allowed"
-                        title="Disponible en la Etapa 4"
+                      <Link
+                        to="/mantenimientos"
+                        className={`relative flex items-center px-4 py-2 rounded-lg text-sm font-medium transition-all duration-200 ${
+                          isActive("/mantenimientos")
+                            ? "text-white"
+                            : "text-slate-400 hover:text-white hover:bg-white/5"
+                        }`}
+                        aria-current={isActive("/mantenimientos") ? "page" : undefined}
                       >
-                        <Wrench className="h-4 w-4 mr-2" />
-                        Mantenimiento
-                        <span className="ml-2 text-[10px] bg-slate-700 text-slate-400 px-1.5 py-0.5 rounded-full uppercase tracking-wider">
-                          Pronto
+                        {isActive("/mantenimientos") && (
+                          <span className="absolute inset-0 bg-gradient-to-r from-blue-600/80 to-blue-500/80 rounded-lg" />
+                        )}
+                        <span className="relative flex items-center">
+                          <Wrench className="h-4 w-4 mr-2" />
+                          Mantenimiento
                         </span>
-                      </span>
+                      </Link>
                     )}
                   </div>
                 )}
@@ -329,13 +336,20 @@ export default function Navbar({ user, onLogout, demoRole }) {
                 })}
 
               {canSeeMantenimiento && (showFullNavbar || !isHomePage) && (
-                <span className="flex items-center px-4 py-3 rounded-xl text-base font-medium text-slate-500">
+                <Link
+                  to="/mantenimientos"
+                  onClick={() => setIsOpen(false)}
+                  className={`flex items-center px-4 py-3 rounded-xl text-base font-medium transition-all duration-200 ${
+                    isActive("/mantenimientos")
+                      ? "bg-gradient-to-r from-blue-600 to-blue-500 text-white shadow-lg shadow-blue-500/20"
+                      : "text-slate-300 hover:bg-white/5 hover:text-white"
+                  }`}
+                  aria-current={isActive("/mantenimientos") ? "page" : undefined}
+                >
                   <Wrench className="h-5 w-5 mr-3" />
                   Mantenimiento
-                  <span className="ml-auto text-[10px] bg-slate-800 text-slate-500 px-2 py-1 rounded-full uppercase tracking-wider">
-                    Pronto
-                  </span>
-                </span>
+                  {isActive("/mantenimientos") && <ChevronRight className="h-4 w-4 ml-auto" />}
+                </Link>
               )}
 
               <div className="my-4 border-t border-slate-800" />

@@ -1,5 +1,4 @@
 ﻿using GoVehiculos.API.DTOs;
-using GoVehiculos.API.Models;
 using GoVehiculos.API.Services;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
@@ -18,94 +17,62 @@ namespace GoVehiculos.API.Controllers
             _service = service;
         }
 
+        // GET /api/mantenimientos/candidatos
+        // Devuelve vehículos con estadoMecanico "regular" o "malo" para mostrar en la lista
+        [HttpGet("candidatos")]
+        public async Task<IActionResult> GetCandidatos()
+        {
+            var vehiculos = await _service.GetVehiculosCandidatosAsync();
+            return Ok(vehiculos);
+        }
+
+        // GET /api/mantenimientos
+        // Devuelve todas las órdenes de mantenimiento generadas
         [HttpGet]
         public async Task<IActionResult> GetAll()
         {
-            var mantenimientos = await _service.GetAllAsync();
-            var dtoList = mantenimientos.Select(m => new MantenimientoDTO
-            {
-                IdMantenimiento = m.IdMantenimiento,
-                VehiculoId = m.VehiculoId,
-                EmpleadoId = m.EmpleadoId,
-                Tipo = m.Tipo,
-                Descripcion = m.Descripcion,
-                Estado = m.Estado,
-                Prioridad = m.Prioridad,
-                FechaProgramada = m.FechaProgramada,
-                FechaRealizacion = m.FechaRealizacion,
-                Costo = m.Costo,
-                RealizadoPor = m.RealizadoPor
-            });
-            return Ok(dtoList);
+            var resultado = await _service.GetAllAsync();
+            return Ok(resultado);
         }
 
+        // GET /api/mantenimientos/{id}
         [HttpGet("{id}")]
         public async Task<IActionResult> GetById(int id)
         {
-            var m = await _service.GetByIdAsync(id);
-            if (m == null) return NotFound();
-
-            var dto = new MantenimientoDTO
-            {
-                IdMantenimiento = m.IdMantenimiento,
-                VehiculoId = m.VehiculoId,
-                EmpleadoId = m.EmpleadoId,
-                Tipo = m.Tipo,
-                Descripcion = m.Descripcion,
-                Estado = m.Estado,
-                Prioridad = m.Prioridad,
-                FechaProgramada = m.FechaProgramada,
-                FechaRealizacion = m.FechaRealizacion,
-                Costo = m.Costo,
-                RealizadoPor = m.RealizadoPor
-            };
-            return Ok(dto);
+            var resultado = await _service.GetByIdAsync(id);
+            if (resultado == null) return NotFound();
+            return Ok(resultado);
         }
 
+        // POST /api/mantenimientos
+        // Aplica las reglas de negocio:
+        //   - Si MantenimientoACargoDe == "socio" → 422 con mensaje, vehículo pasa a fuera_de_servicio
+        //   - Si MantenimientoACargoDe == "empresa" → 201 con la orden creada, vehículo pasa a mantenimiento
         [HttpPost]
-        public async Task<IActionResult> Create(MantenimientoDTO dto)
+        public async Task<IActionResult> Create([FromBody] MantenimientoCreateDTO dto)
         {
-            var m = new Mantenimiento
-            {
-                VehiculoId = dto.VehiculoId,
-                EmpleadoId = dto.EmpleadoId,
-                Tipo = dto.Tipo,
-                Descripcion = dto.Descripcion,
-                Estado = dto.Estado,
-                Prioridad = dto.Prioridad,
-                FechaProgramada = dto.FechaProgramada,
-                FechaRealizacion = dto.FechaRealizacion,
-                Costo = dto.Costo,
-                RealizadoPor = dto.RealizadoPor
-            };
+            var (exito, mensaje, orden) = await _service.CreateAsync(dto);
 
-            var nuevo = await _service.CreateAsync(m);
-            return CreatedAtAction(nameof(GetById), new { id = nuevo.IdMantenimiento }, dto);
+            if (!exito)
+            {
+                // 422 Unprocessable Entity: la solicitud fue válida pero no se pudo procesar
+                // por una regla de negocio (el socio se hace cargo del mantenimiento)
+                return UnprocessableEntity(new { mensaje });
+            }
+
+            return CreatedAtAction(nameof(GetById), new { id = orden!.IdMantenimiento }, orden);
         }
 
+        // PUT /api/mantenimientos/{id}
         [HttpPut("{id}")]
-        public async Task<IActionResult> Update(int id, MantenimientoDTO dto)
+        public async Task<IActionResult> Update(int id, [FromBody] MantenimientoUpdateDTO dto)
         {
-            var m = new Mantenimiento
-            {
-                IdMantenimiento = id,
-                VehiculoId = dto.VehiculoId,
-                EmpleadoId = dto.EmpleadoId,
-                Tipo = dto.Tipo,
-                Descripcion = dto.Descripcion,
-                Estado = dto.Estado,
-                Prioridad = dto.Prioridad,
-                FechaProgramada = dto.FechaProgramada,
-                FechaRealizacion = dto.FechaRealizacion,
-                Costo = dto.Costo,
-                RealizadoPor = dto.RealizadoPor
-            };
-
-            var ok = await _service.UpdateAsync(id, m);
+            var ok = await _service.UpdateAsync(id, dto);
             if (!ok) return NotFound();
             return NoContent();
         }
 
+        // DELETE /api/mantenimientos/{id}
         [HttpDelete("{id}")]
         public async Task<IActionResult> Delete(int id)
         {
