@@ -109,7 +109,7 @@ export default function Navbar({ user, onLogout, demoRole }) {
       name:         "Dashboard",
       path:         "/dashboard",
       icon:         LayoutDashboard,
-      allowedRoles: [ROLES.CLIENTE, ROLES.SOCIO, ROLES.EMPLEADO, ROLES.ADMINISTRADOR],
+      allowedRoles: [ROLES.ADMINISTRADOR],
     },
     {
       name:         "Vehiculos",

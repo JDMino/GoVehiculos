@@ -8,6 +8,7 @@ import {
   Activity,
   ArrowRight,
   ShieldCheck,
+  ClipboardList,
 } from "lucide-react";
 import api from "../api/axiosConfig";
 import useAuthStore from "../context/AuthStore";
@@ -22,7 +23,6 @@ const StatCard = ({ title, value, Icon, colorClass, subtitle, isLoading }) => (
         {title}
       </p>
       <h3 className="text-3xl font-bold text-gray-900 mt-1">
-        {/* Usamos el prop isLoading en lugar de la variable global */}
         {isLoading ? "..." : value}
       </h3>
       {subtitle && <p className="text-xs text-gray-400 mt-1">{subtitle}</p>}
@@ -32,43 +32,48 @@ const StatCard = ({ title, value, Icon, colorClass, subtitle, isLoading }) => (
 
 export default function Dashboard() {
   const user = useAuthStore((state) => state.user);
+
   const [stats, setStats] = useState({
-    totalVehiculos: 0,
-    totalUsuarios: 0,
+    totalVehiculos:       0,
     vehiculosDisponibles: 0,
-    mantenimientosActivos: 0,
+    totalUsuarios:        0,
+    vehiculosConAlerta:   0, // estadoMecanico regular o malo
   });
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
     const fetchStats = async () => {
       let vehiculosData = [];
-      let usuariosData = [];
+      let usuariosData  = [];
+      let contadorMant  = 0;
 
-      // 1. Intentamos cargar Vehículos
       try {
-        const vehiculosRes = await api.get("/vehiculos");
-        vehiculosData = vehiculosRes.data;
-      } catch (error) {
-        console.warn("No se pudieron cargar los vehículos:", error.message);
+        const res = await api.get("/vehiculos");
+        vehiculosData = res.data;
+      } catch (e) {
+        console.warn("No se pudieron cargar los vehículos:", e.message);
       }
 
-      // 2. Intentamos cargar Usuarios
       try {
-        const usuariosRes = await api.get("/usuarios");
-        usuariosData = usuariosRes.data;
-      } catch (error) {
-        console.error("No se pudieron cargar los usuarios:", error.message);
+        const res = await api.get("/usuarios");
+        usuariosData = res.data;
+      } catch (e) {
+        console.warn("No se pudieron cargar los usuarios:", e.message);
       }
 
-      // 3. Actualizamos las estadísticas
+      // Contador de vehículos con alerta de mantenimiento (regular o malo)
+      try {
+        const res = await api.get("/mantenimientos/contador-admin");
+        contadorMant = res.data.count ?? 0;
+      } catch (e) {
+        console.warn("No se pudo cargar el contador de mantenimiento:", e.message);
+      }
+
       setStats({
-        totalVehiculos: vehiculosData.length,
-        vehiculosDisponibles: vehiculosData.filter(
-          (v) => v.estado === "disponible",
-        ).length,
-        totalUsuarios: usuariosData.length,
-        mantenimientosActivos: 0,
+        totalVehiculos:       vehiculosData.length,
+        vehiculosDisponibles: vehiculosData.filter(v => v.estado === "disponible").length,
+        totalUsuarios:        usuariosData.length,
+        vehiculosConAlerta:   contadorMant,
       });
 
       setLoading(false);
@@ -79,6 +84,7 @@ export default function Dashboard() {
 
   return (
     <div className="min-h-screen bg-gray-50 p-4 sm:p-8">
+
       {/* Encabezado */}
       <div className="max-w-7xl mx-auto mb-8 flex flex-col md:flex-row md:items-center justify-between gap-4">
         <div>
@@ -91,13 +97,14 @@ export default function Dashboard() {
             <span className="font-semibold text-blue-600">
               {user?.email || "Administrador"}
             </span>
-            . Aquí tienes un resumen del sistema.
+            . Aquí tenés un resumen del sistema.
           </p>
         </div>
       </div>
 
       <div className="max-w-7xl mx-auto space-y-8">
-        {/* Sección 1: Tarjetas de Estadísticas */}
+
+        {/* Sección 1: Estadísticas */}
         <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-6">
           <StatCard
             title="Vehículos Totales"
@@ -116,11 +123,15 @@ export default function Dashboard() {
             isLoading={loading}
           />
           <StatCard
-            title="Mantenimientos"
-            value={stats.mantenimientosActivos}
+            title="Alertas de Mantenimiento"
+            value={stats.vehiculosConAlerta}
             Icon={Wrench}
             colorClass="bg-orange-500 text-orange-600"
-            subtitle="Órdenes en proceso (Próximamente)"
+            subtitle={
+              stats.vehiculosConAlerta === 0
+                ? "Todos los vehículos en buen estado"
+                : "Vehículos con estado mecánico regular o malo"
+            }
             isLoading={loading}
           />
           <StatCard
@@ -129,29 +140,26 @@ export default function Dashboard() {
             Icon={Activity}
             colorClass="bg-purple-500 text-purple-600"
             subtitle="Conexión con BD GoVehiculosDB"
-            isLoading={false} // Siempre estable visualmente
+            isLoading={false}
           />
         </div>
 
         {/* Sección 2: Acciones Rápidas */}
         <div>
-          <h2 className="text-xl font-bold text-gray-900 mb-4">
-            Acciones Rápidas
-          </h2>
+          <h2 className="text-xl font-bold text-gray-900 mb-4">Acciones Rápidas</h2>
           <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
-            {/* Acción 1: Gestión de Vehículos */}
+
+            {/* Vehículos */}
             <div className="bg-white rounded-xl shadow-sm border border-gray-100 p-6 flex flex-col h-full hover:border-blue-300 transition-colors">
               <div className="flex items-center gap-3 mb-4">
                 <div className="bg-blue-100 p-2 rounded-lg">
                   <Car className="h-6 w-6 text-blue-600" />
                 </div>
-                <h3 className="text-lg font-bold text-gray-900">
-                  Catálogo de Flota
-                </h3>
+                <h3 className="text-lg font-bold text-gray-900">Catálogo de Flota</h3>
               </div>
               <p className="text-gray-600 text-sm mb-6 flex-grow">
-                Administra los vehículos del sistema. Registra nuevas unidades,
-                edita sus datos o dalos de baja lógica.
+                Administrá los vehículos del sistema. Registrá nuevas unidades,
+                editá sus datos o dalos de baja lógica.
               </p>
               <div className="flex gap-2 mt-auto">
                 <Link
@@ -169,19 +177,17 @@ export default function Dashboard() {
               </div>
             </div>
 
-            {/* Acción 2: Gestión de Usuarios */}
+            {/* Usuarios */}
             <div className="bg-white rounded-xl shadow-sm border border-gray-100 p-6 flex flex-col h-full hover:border-green-300 transition-colors">
               <div className="flex items-center gap-3 mb-4">
                 <div className="bg-green-100 p-2 rounded-lg">
                   <Users className="h-6 w-6 text-green-600" />
                 </div>
-                <h3 className="text-lg font-bold text-gray-900">
-                  Gestion de Usuarios
-                </h3>
+                <h3 className="text-lg font-bold text-gray-900">Gestión de Usuarios</h3>
               </div>
               <p className="text-gray-600 text-sm mb-6 flex-grow">
-                Controla los accesos al sistema. Gestiona roles, actualiza datos
-                personales o bloquea cuentas.
+                Controlá los accesos al sistema. Gestioná roles, actualizá datos
+                personales o bloqueá cuentas.
               </p>
               <div className="flex gap-2 mt-auto">
                 <Link
@@ -199,30 +205,50 @@ export default function Dashboard() {
               </div>
             </div>
 
-            {/* Acción 3: Mantenimiento */}
-            <div className="bg-white rounded-xl shadow-sm border border-gray-100 p-6 flex flex-col h-full relative overflow-hidden">
-              <div className="absolute top-4 right-[-35px] bg-yellow-400 text-yellow-900 text-xs font-bold px-10 py-1 rotate-45 shadow-sm">
-                PRÓXIMAMENTE
-              </div>
-              <div className="flex items-center gap-3 mb-4 opacity-70">
-                <div className="bg-orange-100 p-2 rounded-lg">
-                  <Wrench className="h-6 w-6 text-orange-600" />
+            {/* Mantenimiento — ahora funcional */}
+            <div className={`bg-white rounded-xl shadow-sm border p-6 flex flex-col h-full transition-colors ${
+              stats.vehiculosConAlerta > 0
+                ? "border-orange-200 hover:border-orange-300"
+                : "border-gray-100 hover:border-orange-200"
+            }`}>
+              <div className="flex items-center justify-between mb-4">
+                <div className="flex items-center gap-3">
+                  <div className="bg-orange-100 p-2 rounded-lg">
+                    <Wrench className="h-6 w-6 text-orange-600" />
+                  </div>
+                  <h3 className="text-lg font-bold text-gray-900">Módulo Mantenimiento</h3>
                 </div>
-                <h3 className="text-lg font-bold text-gray-900">
-                  Módulo Mantenimiento
-                </h3>
+                {/* Badge de alerta si hay vehículos con problemas */}
+                {!loading && stats.vehiculosConAlerta > 0 && (
+                  <span className="inline-flex items-center justify-center min-w-[24px] h-6 px-1.5 rounded-full bg-orange-500 text-white text-xs font-black">
+                    {stats.vehiculosConAlerta}
+                  </span>
+                )}
               </div>
-              <p className="text-gray-500 text-sm mb-6 flex-grow opacity-70">
-                Genera órdenes de mantenimiento, asigna mecánicos y devuelve
-                vehículos a la disponibilidad.
+
+              <p className="text-gray-600 text-sm mb-6 flex-grow">
+                {!loading && stats.vehiculosConAlerta > 0
+                  ? `Hay ${stats.vehiculosConAlerta} vehículo${stats.vehiculosConAlerta > 1 ? "s" : ""} con estado mecánico que requiere atención. Generá órdenes, asigná empleados y gestioná el historial.`
+                  : "Generá órdenes de mantenimiento, asigná empleados y devolvé vehículos a la disponibilidad."}
               </p>
-              <button
-                disabled
-                className="mt-auto flex items-center justify-center gap-2 w-full bg-gray-200 text-gray-500 font-medium py-2 px-4 rounded-lg cursor-not-allowed"
-              >
-                Módulo Bloqueado <ArrowRight className="h-4 w-4" />
-              </button>
+
+              <div className="flex gap-2 mt-auto">
+                <Link
+                  to="/mantenimientos"
+                  className="flex-1 text-center bg-orange-500 hover:bg-orange-600 text-white font-medium py-2 px-4 rounded-lg transition-colors"
+                >
+                  Ir a Mantenimientos
+                </Link>
+                <Link
+                  to="/mantenimientos/historial"
+                  className="flex items-center justify-center bg-gray-100 hover:bg-gray-200 text-gray-700 py-2 px-4 rounded-lg transition-colors"
+                  title="Ver historial de órdenes"
+                >
+                  <ClipboardList className="h-5 w-5" />
+                </Link>
+              </div>
             </div>
+
           </div>
         </div>
       </div>

@@ -1,8 +1,5 @@
-using GoVehiculos.API.Models;
 using System.ComponentModel.DataAnnotations;
 using System.ComponentModel.DataAnnotations.Schema;
-
-
 
 namespace GoVehiculos.API.Models
 {
@@ -42,21 +39,27 @@ namespace GoVehiculos.API.Models
         [Column("fecha_programada")]
         public DateOnly? FechaProgramada { get; set; }
 
-        // Se completa cuando el trabajo se ejecuta, no al crear la orden
         [Column("fecha_realizacion")]
         public DateOnly? FechaRealizacion { get; set; }
 
         [Column("costo")]
         public decimal Costo { get; set; } = 0;
 
-        // Campo libre: nombre del taller, t閏nico externo, etc.
-        // Se completa cuando el trabajo se ejecuta, no al crear la orden
         [Required]
         [MaxLength(20)]
         [Column("realizado_por")]
         public string RealizadoPor { get; set; } = string.Empty;
 
-        // Navegaci髇
+        /// <summary>
+        /// Indica si el admin ya ejecut贸 "Marcar como disponible" para esta orden.
+        /// Una vez en true nunca vuelve a false, sin importar el estado posterior
+        /// del veh铆culo. Evita que 贸rdenes hist贸ricas reactiven el bot贸n cuando
+        /// el veh铆culo pasa a "mantenimiento" nuevamente por una orden nueva.
+        /// </summary>
+        [Column("disponibilizado")]
+        public bool Disponibilizado { get; set; } = false;
+
+        // Navegaci贸n
         public Vehiculo? Vehiculo { get; set; }
         public Usuario? Empleado { get; set; }
     }

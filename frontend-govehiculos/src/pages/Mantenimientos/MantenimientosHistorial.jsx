@@ -26,20 +26,20 @@ import {
 // ── Config visual ──────────────────────────────────────────────────────────
 const ESTADO_MANT_CONFIG = {
   finalizado: {
-    label:   "Finalizado",
-    bg:      "bg-emerald-50",
-    text:    "text-emerald-700",
-    border:  "border-emerald-200",
-    dot:     "bg-emerald-500",
-    icon:    CheckCircle2,
+    label:  "Finalizado",
+    bg:     "bg-emerald-50",
+    text:   "text-emerald-700",
+    border: "border-emerald-200",
+    dot:    "bg-emerald-500",
+    icon:   CheckCircle2,
   },
   cancelado: {
-    label:   "Cancelado",
-    bg:      "bg-red-50",
-    text:    "text-red-700",
-    border:  "border-red-200",
-    dot:     "bg-red-400",
-    icon:    XCircle,
+    label:  "Cancelado",
+    bg:     "bg-red-50",
+    text:   "text-red-700",
+    border: "border-red-200",
+    dot:    "bg-red-400",
+    icon:   XCircle,
   },
 };
 
@@ -58,12 +58,9 @@ export default function MantenimientosHistorial() {
   const [loading, setLoading]           = useState(true);
   const [searchTerm, setSearchTerm]     = useState("");
   const [filtroEstado, setFiltroEstado] = useState("todos");
+  const [expandido, setExpandido]       = useState(null);
 
-  // Expandido — id del mantenimiento con detalle visible
-  const [expandido, setExpandido] = useState(null);
-
-  // Disponibilizar
-  const [disponibilizando, setDisponibilizando] = useState(null); // id del mant en proceso
+  const [disponibilizando, setDisponibilizando] = useState(null);
   const [modalConfirm, setModalConfirm]         = useState({ open: false, mant: null });
   const [errorDisp, setErrorDisp]               = useState(null);
 
@@ -71,11 +68,11 @@ export default function MantenimientosHistorial() {
   const cargar = useCallback(async () => {
     setLoading(true);
     try {
-      // Trae finalizados y cancelados en una sola llamada sin filtro
-      // El filtro por estado lo hacemos en cliente para poder cambiar rápido entre tabs
-      const res = await api.get("/mantenimientos?estado=finalizado");
-      const res2 = await api.get("/mantenimientos?estado=cancelado");
-      setOrdenes([...res.data, ...res2.data]);
+      const [res1, res2] = await Promise.all([
+        api.get("/mantenimientos?estado=finalizado"),
+        api.get("/mantenimientos?estado=cancelado"),
+      ]);
+      setOrdenes([...res1.data, ...res2.data]);
     } catch (e) {
       console.error(e);
     } finally {
@@ -93,8 +90,7 @@ export default function MantenimientosHistorial() {
       m.vehiculoMarca?.toLowerCase().includes(q)   ||
       m.vehiculoModelo?.toLowerCase().includes(q)  ||
       m.empleadoNombre?.toLowerCase().includes(q);
-
-    if (filtroEstado === "todos")      return coincide;
+    if (filtroEstado === "todos") return coincide;
     return coincide && m.estado === filtroEstado;
   });
 
@@ -112,11 +108,11 @@ export default function MantenimientosHistorial() {
     setErrorDisp(null);
     try {
       await api.patch(`/mantenimientos/${mant.idMantenimiento}/disponibilizar`);
-      // Actualizar localmente el vehiculoEstado para deshabilitar el botón sin recargar todo
+      // Actualizar localmente el flag — ya no depende del estado del vehículo
       setOrdenes(prev =>
         prev.map(o =>
           o.idMantenimiento === mant.idMantenimiento
-            ? { ...o, vehiculoEstado: "disponible" }
+            ? { ...o, disponibilizado: true }
             : o
         )
       );
@@ -127,18 +123,6 @@ export default function MantenimientosHistorial() {
     }
   };
 
-
-  const esUltimaOrden = (mant) => {
-  const maxId = Math.max(
-    ...ordenes
-      .filter(o => o.vehiculoId === mant.vehiculoId)
-      .map(o => o.idMantenimiento)
-  );
-
-  return mant.idMantenimiento === maxId;
-};
-
-
   // ── Render ─────────────────────────────────────────────────────────────
   return (
     <div className="min-h-screen bg-slate-50">
@@ -146,7 +130,6 @@ export default function MantenimientosHistorial() {
       {/* Header */}
       <div className="bg-gradient-to-r from-slate-900 to-slate-800 text-white">
         <div className="max-w-7xl mx-auto px-6 py-8">
-          {/* Botón volver */}
           <button
             onClick={() => navigate("/mantenimientos")}
             className="inline-flex items-center gap-2 text-slate-300 hover:text-white text-sm font-medium mb-5 transition-colors group"
@@ -185,7 +168,7 @@ export default function MantenimientosHistorial() {
 
       <div className="max-w-7xl mx-auto px-6 py-8">
 
-        {/* Error global de disponibilizar */}
+        {/* Error global */}
         {errorDisp && (
           <div className="flex items-start gap-3 bg-red-50 border border-red-200 rounded-2xl px-5 py-4 mb-6">
             <AlertTriangle className="h-5 w-5 text-red-500 shrink-0 mt-0.5" />
@@ -261,9 +244,15 @@ export default function MantenimientosHistorial() {
               const prioridadCfg = PRIORIDAD_CONFIG[m.prioridad] || PRIORIDAD_CONFIG.media;
               const EstadoIcon   = estadoCfg?.icon;
               const isExpandido  = expandido === m.idMantenimiento;
-              const yaDisponible = m.vehiculoEstado === "disponible";
               const esFinalizado = m.estado === "finalizado";
               const enProceso    = disponibilizando === m.idMantenimiento;
+
+              // ── CLAVE DEL FIX ──────────────────────────────────────────
+              // Se usa m.disponibilizado (flag permanente en BD) en lugar de
+              // m.vehiculoEstado === "disponible". Así, si el vehículo vuelve
+              // a "mantenimiento" por una orden nueva, las órdenes históricas
+              // ya disponibilizadas no reactivan el botón.
+              const yaDisponible = m.disponibilizado === true;
 
               return (
                 <div
@@ -322,12 +311,12 @@ export default function MantenimientosHistorial() {
 
                     {/* Acciones */}
                     <div className="flex items-center gap-2 ml-auto shrink-0">
-                      {/* Botón disponibilizar — solo en finalizados */}
-                     {esFinalizado && esUltimaOrden(m) && (
+                      {/* Botón disponibilizar — solo finalizados y solo si no fue disponibilizado */}
+                      {esFinalizado && (
                         <button
                           onClick={() => !yaDisponible && !enProceso && setModalConfirm({ open: true, mant: m })}
                           disabled={yaDisponible || enProceso}
-                          title={yaDisponible ? "El vehículo ya está disponible" : "Marcar vehículo como disponible"}
+                          title={yaDisponible ? "Ya fue disponibilizado" : "Marcar vehículo como disponible"}
                           className={`inline-flex items-center gap-1.5 px-3 py-1.5 text-xs font-semibold rounded-xl border transition-all ${
                             yaDisponible
                               ? "bg-emerald-50 text-emerald-600 border-emerald-200 cursor-not-allowed opacity-70"
@@ -343,7 +332,7 @@ export default function MantenimientosHistorial() {
                           ) : (
                             <CheckCircle2 className="h-3.5 w-3.5" />
                           )}
-                          {yaDisponible ? "Disponible" : enProceso ? "Procesando..." : "Marcar disponible"}
+                          {yaDisponible ? "Disponibilizado" : enProceso ? "Procesando..." : "Marcar disponible"}
                         </button>
                       )}
 
@@ -362,22 +351,20 @@ export default function MantenimientosHistorial() {
                   {isExpandido && (
                     <div className="border-t border-slate-100 bg-slate-50/50 px-5 py-5">
                       <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
-
-                        <DetalleItem icon={Wrench}      label="Tipo"             value={m.tipo} capitalize />
-                        <DetalleItem icon={Clock}        label="Estado orden"     value={estadoCfg.label} />
-                        <DetalleItem icon={Car}          label="Estado vehículo"  value={m.vehiculoEstado || "—"} />
-                        <DetalleItem icon={User}         label="Empleado"         value={m.empleadoNombre || "Sin asignar"} />
-                        <DetalleItem icon={User}         label="Realizado por"    value={m.realizadoPor || "—"} />
-                        <DetalleItem icon={DollarSign}   label="Costo"            value={
+                        <DetalleItem icon={Wrench}      label="Tipo"             value={m.tipo}                     capitalize />
+                        <DetalleItem icon={Clock}        label="Estado orden"    value={estadoCfg.label}            />
+                        <DetalleItem icon={Car}          label="Estado vehículo" value={m.vehiculoEstado || "—"}    />
+                        <DetalleItem icon={User}         label="Empleado"        value={m.empleadoNombre || "Sin asignar"} />
+                        <DetalleItem icon={User}         label="Realizado por"   value={m.realizadoPor || "—"}      />
+                        <DetalleItem icon={DollarSign}   label="Costo"           value={
                           m.costo != null
                             ? `$${Number(m.costo).toLocaleString("es-AR", { minimumFractionDigits: 2 })}`
                             : "—"
                         } />
                         <DetalleItem icon={Calendar}     label="Fecha programada"  value={m.fechaProgramada  || "—"} />
                         <DetalleItem icon={Calendar}     label="Fecha realización" value={m.fechaRealizacion || "—"} />
-                        <DetalleItem icon={Info}         label="Prioridad"         value={prioridadCfg.label} />
+                        <DetalleItem icon={Info}         label="Prioridad"         value={prioridadCfg.label}        />
 
-                        {/* Descripción ocupa todo el ancho */}
                         <div className="sm:col-span-2 lg:col-span-3">
                           <p className="text-xs font-medium text-slate-500 mb-1.5">Descripción</p>
                           <p className="text-sm text-slate-700 bg-white rounded-xl px-4 py-3 border border-slate-200 leading-relaxed">
@@ -414,7 +401,7 @@ export default function MantenimientosHistorial() {
                 </p>
                 <p className="text-xs text-slate-400 mt-2 flex items-center gap-1">
                   <Info className="h-3.5 w-3.5 shrink-0" />
-                  Esta acción no se puede deshacer desde esta pantalla.
+                  Esta acción es irreversible desde esta pantalla.
                 </p>
               </div>
             </div>
