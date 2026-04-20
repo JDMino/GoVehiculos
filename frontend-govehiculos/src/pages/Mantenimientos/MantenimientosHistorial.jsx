@@ -127,6 +127,18 @@ export default function MantenimientosHistorial() {
     }
   };
 
+
+  const esUltimaOrden = (mant) => {
+  const maxId = Math.max(
+    ...ordenes
+      .filter(o => o.vehiculoId === mant.vehiculoId)
+      .map(o => o.idMantenimiento)
+  );
+
+  return mant.idMantenimiento === maxId;
+};
+
+
   // ── Render ─────────────────────────────────────────────────────────────
   return (
     <div className="min-h-screen bg-slate-50">
@@ -311,7 +323,7 @@ export default function MantenimientosHistorial() {
                     {/* Acciones */}
                     <div className="flex items-center gap-2 ml-auto shrink-0">
                       {/* Botón disponibilizar — solo en finalizados */}
-                      {esFinalizado && (
+                     {esFinalizado && esUltimaOrden(m) && (
                         <button
                           onClick={() => !yaDisponible && !enProceso && setModalConfirm({ open: true, mant: m })}
                           disabled={yaDisponible || enProceso}

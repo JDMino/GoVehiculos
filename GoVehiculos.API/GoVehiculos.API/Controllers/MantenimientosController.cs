@@ -18,14 +18,50 @@ namespace GoVehiculos.API.Controllers
         }
 
         // ================================================================
-        // PARTE 1 — Endpoints del administrador
+        // CONTADORES — Navbar y badge de historial
         // ================================================================
 
         /// <summary>
-        /// GET /api/mantenimientos/candidatos
-        /// Vehículos con estadoMecanico "regular" o "malo",
-        /// enriquecidos con su orden activa si existe.
+        /// GET /api/mantenimientos/contador-admin
+        /// Cantidad de vehículos activos con estadoMecanico "regular" o "malo".
+        /// Usado por el Navbar del administrador.
         /// </summary>
+        [HttpGet("contador-admin")]
+        public async Task<IActionResult> GetContadorAdmin()
+        {
+            var count = await _service.GetContadorAdminAsync();
+            return Ok(new { count });
+        }
+
+        /// <summary>
+        /// GET /api/mantenimientos/contador-empleado/{empleadoId}
+        /// Cantidad de órdenes activas (pendiente o iniciado) del empleado.
+        /// Usado por el Navbar del empleado.
+        /// </summary>
+        [HttpGet("contador-empleado/{empleadoId}")]
+        public async Task<IActionResult> GetContadorEmpleado(int empleadoId)
+        {
+            var count = await _service.GetContadorEmpleadoAsync(empleadoId);
+            return Ok(new { count });
+        }
+
+        /// <summary>
+        /// GET /api/mantenimientos/contador-nuevas
+        /// Cantidad total de órdenes en estado finalizado o cancelado.
+        /// El frontend compara este número contra el último valor almacenado en sessionStorage
+        /// para mostrar u ocultar el badge del botón "Ver Historial".
+        /// </summary>
+        [HttpGet("contador-nuevas")]
+        public async Task<IActionResult> GetContadorNuevasTerminadas()
+        {
+            var count = await _service.GetContadorNuevasTerminadasAsync();
+            return Ok(new { count });
+        }
+
+        // ================================================================
+        // PARTE 1 — Endpoints del administrador
+        // ================================================================
+
         [HttpGet("candidatos")]
         public async Task<IActionResult> GetCandidatos()
         {
@@ -33,11 +69,6 @@ namespace GoVehiculos.API.Controllers
             return Ok(vehiculos);
         }
 
-        /// <summary>
-        /// GET /api/mantenimientos
-        /// Todas las órdenes. Acepta ?estado=finalizado|cancelado para filtrar.
-        /// Usado por la vista de historial del administrador.
-        /// </summary>
         [HttpGet]
         public async Task<IActionResult> GetAll([FromQuery] string? estado)
         {
@@ -45,9 +76,6 @@ namespace GoVehiculos.API.Controllers
             return Ok(resultado);
         }
 
-        /// <summary>
-        /// GET /api/mantenimientos/{id}
-        /// </summary>
         [HttpGet("{id}")]
         public async Task<IActionResult> GetById(int id)
         {
@@ -56,11 +84,6 @@ namespace GoVehiculos.API.Controllers
             return Ok(resultado);
         }
 
-        /// <summary>
-        /// POST /api/mantenimientos
-        /// Crea una orden de mantenimiento (acción del administrador).
-        /// EmpleadoId y FechaProgramada son obligatorios.
-        /// </summary>
         [HttpPost]
         public async Task<IActionResult> Create([FromBody] MantenimientoCreateDTO dto)
         {
@@ -75,10 +98,6 @@ namespace GoVehiculos.API.Controllers
             return CreatedAtAction(nameof(GetById), new { id = orden!.IdMantenimiento }, orden);
         }
 
-        /// <summary>
-        /// POST /api/mantenimientos/habilitar-socio
-        /// Registra el mantenimiento del socio y devuelve el vehículo a disponible.
-        /// </summary>
         [HttpPost("habilitar-socio")]
         public async Task<IActionResult> HabilitarSocio([FromBody] HabilitarVehiculoSocioDTO dto)
         {
@@ -93,10 +112,6 @@ namespace GoVehiculos.API.Controllers
             return Ok(new { mensaje, registro });
         }
 
-        /// <summary>
-        /// PUT /api/mantenimientos/{id}
-        /// Actualización general (admin).
-        /// </summary>
         [HttpPut("{id}")]
         public async Task<IActionResult> Update(int id, [FromBody] MantenimientoUpdateDTO dto)
         {
@@ -105,9 +120,6 @@ namespace GoVehiculos.API.Controllers
             return NoContent();
         }
 
-        /// <summary>
-        /// DELETE /api/mantenimientos/{id}
-        /// </summary>
         [HttpDelete("{id}")]
         public async Task<IActionResult> Delete(int id)
         {
@@ -120,10 +132,6 @@ namespace GoVehiculos.API.Controllers
         // PARTE 2 — Endpoints del empleado
         // ================================================================
 
-        /// <summary>
-        /// GET /api/mantenimientos/empleado/{empleadoId}
-        /// Mantenimientos asignados a un empleado específico.
-        /// </summary>
         [HttpGet("empleado/{empleadoId}")]
         public async Task<IActionResult> GetByEmpleado(int empleadoId)
         {
@@ -131,10 +139,6 @@ namespace GoVehiculos.API.Controllers
             return Ok(resultado);
         }
 
-        /// <summary>
-        /// PATCH /api/mantenimientos/{id}/iniciar
-        /// "pendiente" → "iniciado". Query param: empleadoId
-        /// </summary>
         [HttpPatch("{id}/iniciar")]
         public async Task<IActionResult> Iniciar(int id, [FromBody] MantenimientoIniciarDTO dto,
             [FromQuery] int empleadoId)
@@ -144,11 +148,6 @@ namespace GoVehiculos.API.Controllers
             return Ok(new { mensaje });
         }
 
-        /// <summary>
-        /// PATCH /api/mantenimientos/{id}/finalizar
-        /// "iniciado" → "finalizado". Actualiza EstadoMecanico del vehículo a "bueno".
-        /// Query param: empleadoId
-        /// </summary>
         [HttpPatch("{id}/finalizar")]
         public async Task<IActionResult> Finalizar(int id, [FromBody] MantenimientoFinalizarDTO dto,
             [FromQuery] int empleadoId)
@@ -158,10 +157,6 @@ namespace GoVehiculos.API.Controllers
             return Ok(new { mensaje });
         }
 
-        /// <summary>
-        /// PATCH /api/mantenimientos/{id}/cancelar
-        /// "iniciado" → "cancelado". Query param: empleadoId
-        /// </summary>
         [HttpPatch("{id}/cancelar")]
         public async Task<IActionResult> Cancelar(int id, [FromBody] MantenimientoCancelarDTO dto,
             [FromQuery] int empleadoId)
@@ -172,17 +167,9 @@ namespace GoVehiculos.API.Controllers
         }
 
         // ================================================================
-        // PARTE 3 — Disponibilizar vehículo (acción del administrador)
+        // PARTE 3 — Disponibilizar vehículo
         // ================================================================
 
-        /// <summary>
-        /// PATCH /api/mantenimientos/{id}/disponibilizar
-        /// Cambia el Estado del vehículo a "disponible" luego de que
-        /// el empleado finalizó el trabajo.
-        /// Solo aplica si la orden está en estado "finalizado".
-        /// El botón en el frontend se deshabilita una vez que el vehículo
-        /// pasa a "disponible" (verificado via VehiculoEstado en el DTO).
-        /// </summary>
         [HttpPatch("{id}/disponibilizar")]
         public async Task<IActionResult> Disponibilizar(int id)
         {

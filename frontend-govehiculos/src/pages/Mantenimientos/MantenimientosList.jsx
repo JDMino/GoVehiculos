@@ -1,3 +1,4 @@
+
 import { useEffect, useState, useCallback } from "react";
 import api from "../../api/axiosConfig";
 import { useNavigate } from "react-router-dom";
@@ -66,6 +67,9 @@ const FORM_SOCIO_INICIAL = {
   tipo: "correctivo", descripcion: "", prioridad: "media", fechaRealizacion: "",
 };
 
+// Clave de sessionStorage para el contador de historial
+const SESSION_KEY_HISTORIAL = "mant_historial_visto";
+
 // ── Componente principal ───────────────────────────────────────────────────
 export default function MantenimientosList() {
   const navigate = useNavigate();
@@ -76,12 +80,29 @@ export default function MantenimientosList() {
   const [searchTerm, setSearchTerm]       = useState("");
   const [filtroEstado, setFiltroEstado]   = useState("todos");
 
-  const [modalSocio, setModalSocio]       = useState({ open: false, vehiculo: null });
-  const [formSocio, setFormSocio]         = useState(FORM_SOCIO_INICIAL);
-  const [socioLoading, setSocioLoading]   = useState(false);
-  const [socioError, setSocioError]       = useState(null);
+  // Badge de nuevas órdenes en historial
+  const [hayNuevasOrdenes, setHayNuevasOrdenes] = useState(false);
 
-  // ── Carga ──────────────────────────────────────────────────────────────
+  const [modalSocio, setModalSocio]     = useState({ open: false, vehiculo: null });
+  const [formSocio, setFormSocio]       = useState(FORM_SOCIO_INICIAL);
+  const [socioLoading, setSocioLoading] = useState(false);
+  const [socioError, setSocioError]     = useState(null);
+
+  // ── Verificar si hay nuevas órdenes terminadas desde la última visita ───
+  const verificarNuevasOrdenes = useCallback(async () => {
+    try {
+      const res        = await api.get("/mantenimientos/contador-nuevas");
+      const totalActual = res.data.count ?? 0;
+      const visto       = parseInt(sessionStorage.getItem(SESSION_KEY_HISTORIAL) ?? "-1", 10);
+      // Si nunca visitó el historial (visto === -1) y hay órdenes → mostrar badge
+      // Si visitó y ahora hay más → mostrar badge
+      setHayNuevasOrdenes(totalActual > 0 && totalActual > visto);
+    } catch {
+      // silencioso
+    }
+  }, []);
+
+  // ── Carga de candidatos ─────────────────────────────────────────────────
   const cargar = useCallback(async (silencioso = false) => {
     if (!silencioso) setLoading(true);
     else setRefreshing(true);
@@ -98,9 +119,23 @@ export default function MantenimientosList() {
 
   useEffect(() => {
     cargar();
-    const intervalo = setInterval(() => cargar(true), 30_000);
+    verificarNuevasOrdenes();
+    const intervalo = setInterval(() => {
+      cargar(true);
+      verificarNuevasOrdenes();
+    }, 30_000);
     return () => clearInterval(intervalo);
-  }, [cargar]);
+  }, [cargar, verificarNuevasOrdenes]);
+
+  // ── Navegar al historial y marcar como visto ────────────────────────────
+  const irAlHistorial = async () => {
+    try {
+      const res = await api.get("/mantenimientos/contador-nuevas");
+      sessionStorage.setItem(SESSION_KEY_HISTORIAL, String(res.data.count ?? 0));
+    } catch { /* silencioso */ }
+    setHayNuevasOrdenes(false);
+    navigate("/mantenimientos/historial");
+  };
 
   // ── Filtrado ────────────────────────────────────────────────────────────
   const filtrados = vehiculos.filter((v) => {
@@ -151,7 +186,6 @@ export default function MantenimientosList() {
 
   const confirmarHabilitar = async () => {
     const vehiculo = modalSocio.vehiculo;
-
     if (!formSocio.tipo)               return setSocioError("El tipo es obligatorio.");
     if (!formSocio.descripcion.trim()) return setSocioError("La descripción es obligatoria.");
     if (!formSocio.prioridad)          return setSocioError("La prioridad es obligatoria.");
@@ -169,6 +203,8 @@ export default function MantenimientosList() {
       });
       setModalSocio({ open: false, vehiculo: null });
       cargar();
+      // Al habilitar socio se crea una orden finalizada → actualizar badge
+      verificarNuevasOrdenes();
     } catch (e) {
       setSocioError(e.response?.data?.mensaje || "Error al habilitar el vehículo.");
     } finally {
@@ -198,15 +234,23 @@ export default function MantenimientosList() {
               </div>
             </div>
 
-            {/* Botones de acción del header */}
             <div className="flex items-center gap-2 flex-wrap">
-              {/* Ver historial */}
+              {/* Ver historial con badge de nuevas órdenes */}
               <button
-                onClick={() => navigate("/mantenimientos/historial")}
-                className="flex items-center gap-2 px-4 py-2 bg-white/10 hover:bg-white/20 border border-white/20 rounded-xl text-sm font-medium text-white transition-all"
+                onClick={irAlHistorial}
+                className="relative flex items-center gap-2 px-4 py-2 bg-white/10 hover:bg-white/20 border border-white/20 rounded-xl text-sm font-medium text-white transition-all"
               >
                 <History className="h-4 w-4" />
                 Ver Historial
+                {/* Badge punto indicador */}
+                {hayNuevasOrdenes && (
+                  <span className="absolute -top-1.5 -right-1.5 flex h-4 w-4">
+                    <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-blue-400 opacity-75" />
+                    <span className="relative inline-flex rounded-full h-4 w-4 bg-blue-400 items-center justify-center">
+                      <span className="text-[9px] font-black text-slate-900">!</span>
+                    </span>
+                  </span>
+                )}
               </button>
 
               {/* Refresh */}
@@ -299,13 +343,13 @@ export default function MantenimientosList() {
         ) : (
           <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-4">
             {filtrados.map((v) => {
-              const mecConfig  = ESTADO_MECANICO_CONFIG[v.estadoMecanico];
-              const vehConfig  = ESTADO_VEHICULO_CONFIG[v.estado] || ESTADO_VEHICULO_CONFIG.disponible;
-              const esSocio    = v.mantenimientoACargoDe === "socio";
-              const mant       = v.mantenimientoActivo;
-              const tieneOrden = v.tieneMantenimientoActivo;
-              const mantCfg    = mant ? (ESTADO_MANT_CONFIG[mant.estado] || ESTADO_MANT_CONFIG.pendiente) : null;
-              const MantIcon   = mantCfg?.icon;
+              const mecConfig    = ESTADO_MECANICO_CONFIG[v.estadoMecanico];
+              const vehConfig    = ESTADO_VEHICULO_CONFIG[v.estado] || ESTADO_VEHICULO_CONFIG.disponible;
+              const esSocio      = v.mantenimientoACargoDe === "socio";
+              const mant         = v.mantenimientoActivo;
+              const tieneOrden   = v.tieneMantenimientoActivo;
+              const mantCfg      = mant ? (ESTADO_MANT_CONFIG[mant.estado] || ESTADO_MANT_CONFIG.pendiente) : null;
+              const MantIcon     = mantCfg?.icon;
               const prioridadCfg = mant ? (PRIORIDAD_CONFIG[mant.prioridad] || PRIORIDAD_CONFIG.media) : null;
 
               return (
@@ -317,7 +361,6 @@ export default function MantenimientosList() {
                                : "border-slate-200 hover:border-slate-300 hover:shadow-md"
                   }`}
                 >
-                  {/* Banner */}
                   {tieneOrden && (
                     <div className="flex items-center gap-2 px-4 py-2 bg-blue-50 border-b border-blue-100">
                       <ClipboardList className="h-3.5 w-3.5 text-blue-600 shrink-0" />
@@ -331,7 +374,6 @@ export default function MantenimientosList() {
                     </div>
                   )}
 
-                  {/* Header */}
                   <div className="px-5 pt-5 pb-4 border-b border-slate-100">
                     <div className="flex items-start justify-between gap-3">
                       <div className="flex items-center gap-3">
@@ -354,7 +396,6 @@ export default function MantenimientosList() {
                     </div>
                   </div>
 
-                  {/* Body */}
                   <div className="px-5 py-4 space-y-2.5">
                     <div className="flex items-center justify-between">
                       <span className="font-mono text-xs bg-slate-100 text-slate-700 px-2 py-0.5 rounded border border-slate-200">
@@ -375,7 +416,6 @@ export default function MantenimientosList() {
                       </div>
                     )}
 
-                    {/* Datos del mantenimiento activo */}
                     {tieneOrden && mant && (
                       <div className="mt-1 pt-3 border-t border-slate-100 space-y-2">
                         <div className="flex items-center justify-between">
@@ -408,7 +448,6 @@ export default function MantenimientosList() {
                     )}
                   </div>
 
-                  {/* CTA */}
                   <div className="px-5 pb-5">
                     {tieneOrden ? (
                       <div className="flex items-center justify-center gap-2 w-full py-2.5 bg-slate-100 text-slate-400 text-sm font-semibold rounded-xl cursor-not-allowed select-none">
@@ -462,10 +501,7 @@ export default function MantenimientosList() {
                     </p>
                   </div>
                 </div>
-                <button
-                  onClick={() => setModalSocio({ open: false, vehiculo: null })}
-                  className="text-slate-400 hover:text-slate-600 transition-colors shrink-0"
-                >
+                <button onClick={() => setModalSocio({ open: false, vehiculo: null })} className="text-slate-400 hover:text-slate-600 transition-colors shrink-0">
                   <X className="h-5 w-5" />
                 </button>
               </div>
@@ -475,8 +511,7 @@ export default function MantenimientosList() {
                   <div className="flex items-start gap-2 bg-blue-50 border border-blue-200 rounded-xl px-4 py-3 mb-5">
                     <Info className="h-4 w-4 text-blue-500 shrink-0 mt-0.5" />
                     <p className="text-sm text-blue-700">
-                      El vehículo está <span className="font-semibold">fuera de servicio</span>. Completá los datos del
-                      trabajo realizado por el socio para habilitarlo nuevamente.
+                      El vehículo está <span className="font-semibold">fuera de servicio</span>. Completá los datos del trabajo realizado por el socio para habilitarlo nuevamente.
                     </p>
                   </div>
 
@@ -558,18 +593,10 @@ export default function MantenimientosList() {
                   )}
 
                   <div className="flex justify-end gap-3 mt-6 pt-4 border-t border-slate-100">
-                    <button
-                      onClick={() => setModalSocio({ open: false, vehiculo: null })}
-                      disabled={socioLoading}
-                      className="px-5 py-2.5 text-sm font-semibold text-slate-600 hover:bg-slate-100 rounded-xl transition-colors disabled:opacity-50"
-                    >
+                    <button onClick={() => setModalSocio({ open: false, vehiculo: null })} disabled={socioLoading} className="px-5 py-2.5 text-sm font-semibold text-slate-600 hover:bg-slate-100 rounded-xl transition-colors disabled:opacity-50">
                       Cancelar
                     </button>
-                    <button
-                      onClick={confirmarHabilitar}
-                      disabled={socioLoading}
-                      className="inline-flex items-center gap-2 px-5 py-2.5 text-sm font-semibold text-white bg-emerald-600 hover:bg-emerald-700 rounded-xl shadow-md transition-colors disabled:opacity-60"
-                    >
+                    <button onClick={confirmarHabilitar} disabled={socioLoading} className="inline-flex items-center gap-2 px-5 py-2.5 text-sm font-semibold text-white bg-emerald-600 hover:bg-emerald-700 rounded-xl shadow-md transition-colors disabled:opacity-60">
                       {socioLoading && <Loader2 className="h-4 w-4 animate-spin" />}
                       Habilitar Vehículo
                     </button>
@@ -582,8 +609,7 @@ export default function MantenimientosList() {
                   </p>
                   <p className="text-sm text-slate-500">
                     Al confirmar, el vehículo pasará automáticamente a estado{" "}
-                    <span className="font-semibold text-red-600">fuera de servicio</span> y
-                    no podrá ser reservado hasta que el socio realice el mantenimiento y vos lo habilites.
+                    <span className="font-semibold text-red-600">fuera de servicio</span> y no podrá ser reservado hasta que el socio realice el mantenimiento y vos lo habilites.
                   </p>
 
                   {socioError && (
@@ -594,18 +620,10 @@ export default function MantenimientosList() {
                   )}
 
                   <div className="flex justify-end gap-3 mt-6 pt-4 border-t border-slate-100">
-                    <button
-                      onClick={() => setModalSocio({ open: false, vehiculo: null })}
-                      disabled={socioLoading}
-                      className="px-5 py-2.5 text-sm font-semibold text-slate-600 hover:bg-slate-100 rounded-xl transition-colors disabled:opacity-50"
-                    >
+                    <button onClick={() => setModalSocio({ open: false, vehiculo: null })} disabled={socioLoading} className="px-5 py-2.5 text-sm font-semibold text-slate-600 hover:bg-slate-100 rounded-xl transition-colors disabled:opacity-50">
                       Cancelar
                     </button>
-                    <button
-                      onClick={confirmarFueraDeServicio}
-                      disabled={socioLoading}
-                      className="inline-flex items-center gap-2 px-5 py-2.5 text-sm font-semibold text-white bg-amber-500 hover:bg-amber-600 rounded-xl shadow-md transition-colors disabled:opacity-60"
-                    >
+                    <button onClick={confirmarFueraDeServicio} disabled={socioLoading} className="inline-flex items-center gap-2 px-5 py-2.5 text-sm font-semibold text-white bg-amber-500 hover:bg-amber-600 rounded-xl shadow-md transition-colors disabled:opacity-60">
                       {socioLoading && <Loader2 className="h-4 w-4 animate-spin" />}
                       Confirmar y pasar a fuera de servicio
                     </button>
