@@ -1,38 +1,30 @@
-﻿using GoVehiculos.API.Data;
-using GoVehiculos.API.DTOs;
+﻿using GoVehiculos.API.DTOs;
 using GoVehiculos.API.Models;
-using Microsoft.EntityFrameworkCore;
+using GoVehiculos.API.Repositories;
 using Microsoft.IdentityModel.Tokens;
 using System.IdentityModel.Tokens.Jwt;
 using System.Security.Claims;
 using System.Text;
 
-
 namespace GoVehiculos.API.Services
 {
     public class AuthService
     {
-        private readonly ApplicationDbContext _context;
+        private readonly IAuthRepository _repo;
         private readonly IConfiguration _config;
 
-
-        public AuthService(ApplicationDbContext context, IConfiguration config)
+        public AuthService(IAuthRepository repo, IConfiguration config)
         {
-            _context = context;
+            _repo = repo;
             _config = config;
         }
 
-
         public async Task<LoginResponse?> LoginAsync(LoginRequest request)
         {
-            var user = await _context.Usuarios
-                .Include(u => u.Rol)
-                .FirstOrDefaultAsync(u => u.Email == request.Email);
-
+            var user = await _repo.GetByEmailAsync(request.Email);
 
             if (user == null || !BCrypt.Net.BCrypt.Verify(request.Password, user.PasswordHash))
                 return null;
-
 
             if (!user.Activo)
             {
@@ -40,7 +32,7 @@ namespace GoVehiculos.API.Services
                 {
                     ErrorMessage = "Tu cuenta está inactiva. Contacta al administrador.",
                     Token = string.Empty,
-                    IdUsuario = user.IdUsuario,   
+                    IdUsuario = user.IdUsuario,
                     RolId = user.RolId,
                     Nombre = user.Nombre,
                     Apellido = user.Apellido,
@@ -48,32 +40,11 @@ namespace GoVehiculos.API.Services
                 };
             }
 
-
-
-
-            var claims = new[]
-            {
-                new Claim(JwtRegisteredClaimNames.Sub, user.Email),
-                new Claim("rol_id", user.RolId.ToString())
-            };
-
-
-            var key = new SymmetricSecurityKey(Encoding.UTF8.GetBytes(_config["Jwt:Key"]));
-            var creds = new SigningCredentials(key, SecurityAlgorithms.HmacSha256);
-
-
-            var token = new JwtSecurityToken(
-                issuer: _config["Jwt:Issuer"],
-                audience: _config["Jwt:Audience"],
-                claims: claims,
-                expires: DateTime.Now.AddHours(2),
-                signingCredentials: creds
-            );
-
+            var token = GenerarToken(user);
 
             return new LoginResponse
             {
-                Token = new JwtSecurityTokenHandler().WriteToken(token),
+                Token = token,
                 IdUsuario = user.IdUsuario,
                 RolId = user.RolId,
                 Nombre = user.Nombre,
@@ -81,7 +52,6 @@ namespace GoVehiculos.API.Services
                 Email = user.Email
             };
         }
-
 
         public async Task<Usuario> RegisterAsync(RegisterRequest request)
         {
@@ -96,10 +66,35 @@ namespace GoVehiculos.API.Services
                 DireccionId = request.DireccionId
             };
 
-
-            _context.Usuarios.Add(user);
-            await _context.SaveChangesAsync();
+            await _repo.AddAsync(user);
+            await _repo.SaveChangesAsync();
             return user;
+        }
+
+        // ================================================================
+        // Privado — generación del JWT
+        // ================================================================
+
+        private string GenerarToken(Usuario user)
+        {
+            var claims = new[]
+            {
+                new Claim(JwtRegisteredClaimNames.Sub, user.Email),
+                new Claim("rol_id", user.RolId.ToString())
+            };
+
+            var key = new SymmetricSecurityKey(Encoding.UTF8.GetBytes(_config["Jwt:Key"]));
+            var creds = new SigningCredentials(key, SecurityAlgorithms.HmacSha256);
+
+            var token = new JwtSecurityToken(
+                issuer: _config["Jwt:Issuer"],
+                audience: _config["Jwt:Audience"],
+                claims: claims,
+                expires: DateTime.Now.AddHours(2),
+                signingCredentials: creds
+            );
+
+            return new JwtSecurityTokenHandler().WriteToken(token);
         }
     }
 }

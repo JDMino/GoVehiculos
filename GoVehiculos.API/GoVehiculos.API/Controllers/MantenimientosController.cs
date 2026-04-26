@@ -11,10 +11,12 @@ namespace GoVehiculos.API.Controllers
     public class MantenimientosController : ControllerBase
     {
         private readonly MantenimientoService _service;
+        private readonly VehiculoService _vehiculoService;
 
-        public MantenimientosController(MantenimientoService service)
+        public MantenimientosController(MantenimientoService service, VehiculoService vehiculoService)
         {
             _service = service;
+            _vehiculoService = vehiculoService;
         }
 
         // ================================================================
@@ -29,7 +31,7 @@ namespace GoVehiculos.API.Controllers
         [HttpGet("contador-admin")]
         public async Task<IActionResult> GetContadorAdmin()
         {
-            var count = await _service.GetContadorAdminAsync();
+            var count = await _vehiculoService.GetContadorAdminAsync();
             return Ok(new { count });
         }
 
@@ -65,7 +67,7 @@ namespace GoVehiculos.API.Controllers
         [HttpGet("candidatos")]
         public async Task<IActionResult> GetCandidatos()
         {
-            var vehiculos = await _service.GetVehiculosCandidatosAsync();
+            var vehiculos = await _vehiculoService.GetVehiculosCandidatosAsync();
             return Ok(vehiculos);
         }
 

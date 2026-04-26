@@ -1,5 +1,6 @@
 using GoVehiculos.API.Data;
 using GoVehiculos.API.Services;
+using GoVehiculos.API.Repositories;
 using Microsoft.AspNetCore.Authentication.JwtBearer;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.IdentityModel.Tokens;
@@ -51,6 +52,12 @@ builder.Services.AddScoped<ModeloService>();
 builder.Services.AddScoped<UbicacionService>();
 
 builder.Services.AddScoped<MantenimientoService>();
+
+//Repositories
+builder.Services.AddScoped<IMantenimientoRepository, MantenimientoRepository>();
+builder.Services.AddScoped<IVehiculoRepository, VehiculoRepository>();
+builder.Services.AddScoped<IUsuarioRepository, UsuarioRepository>();
+builder.Services.AddScoped<IAuthRepository, AuthRepository>();
 
 var app = builder.Build();
 
