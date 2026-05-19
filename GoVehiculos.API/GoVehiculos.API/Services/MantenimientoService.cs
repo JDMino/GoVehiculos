@@ -53,6 +53,11 @@ namespace GoVehiculos.API.Services
 
         public async Task<(bool exito, string mensaje, MantenimientoResponseDTO? dto)> CreateAsync(MantenimientoCreateDTO dto)
         {
+            // 1. Validación de campos vacíos o inválidos
+            var errorCampos = ValidarCamposCreate(dto);
+            if (errorCampos != null) return (false, errorCampos, null);
+
+            // 2. Verificaciones de reglas de negocio
             var vehiculo = await _vehiculoRepo.GetByIdSimpleAsync(dto.VehiculoId);
 
             if (vehiculo == null)
@@ -70,20 +75,8 @@ namespace GoVehiculos.API.Services
             if (vehiculo.MantenimientoACargoDe == "socio")
                 return (false, "Este vehículo tiene el mantenimiento a cargo del socio. Usá la opción correspondiente.", null);
 
-            var mantenimiento = new Mantenimiento
-            {
-                VehiculoId = dto.VehiculoId,
-                EmpleadoId = dto.EmpleadoId,
-                Tipo = dto.Tipo,
-                Descripcion = dto.Descripcion,
-                Estado = "pendiente",
-                Prioridad = dto.Prioridad,
-                FechaProgramada = dto.FechaProgramada,
-                Costo = 0,
-                RealizadoPor = string.Empty,
-                Disponibilizado = false
-            };
-
+            // 3. Construcción de la entidad y persistencia
+            var mantenimiento = CrearOrdenDesdeDTO(dto);
             vehiculo.Estado = "mantenimiento";
 
             await _repo.AddAsync(mantenimiento);
@@ -95,6 +88,11 @@ namespace GoVehiculos.API.Services
 
         public async Task<(bool exito, string mensaje, MantenimientoResponseDTO? dto)> HabilitarVehiculoSocioAsync(HabilitarVehiculoSocioDTO dto)
         {
+            // 1. Validación de campos vacíos o inválidos
+            var errorCampos = ValidarCamposHabilitar(dto);
+            if (errorCampos != null) return (false, errorCampos, null);
+
+            // 2. Verificaciones de reglas de negocio
             var vehiculo = await _vehiculoRepo.GetByIdSimpleAsync(dto.VehiculoId);
 
             if (vehiculo == null)
@@ -106,21 +104,8 @@ namespace GoVehiculos.API.Services
             if (vehiculo.Estado != "fuera_de_servicio")
                 return (false, "El vehículo debe estar en estado 'fuera de servicio' para poder habilitarlo.", null);
 
-            var mantenimiento = new Mantenimiento
-            {
-                VehiculoId = dto.VehiculoId,
-                EmpleadoId = null,
-                Tipo = dto.Tipo,
-                Descripcion = dto.Descripcion,
-                Estado = "finalizado",
-                Prioridad = dto.Prioridad,
-                FechaProgramada = null,
-                FechaRealizacion = dto.FechaRealizacion,
-                Costo = 0,
-                RealizadoPor = "A cargo del Socio",
-                Disponibilizado = true
-            };
-
+            // 3. Construcción de la entidad y persistencia
+            var mantenimiento = CrearRegistroSocioDesdeDTO(dto);
             vehiculo.Estado = "disponible";
             vehiculo.EstadoMecanico = "bueno";
 
@@ -136,14 +121,14 @@ namespace GoVehiculos.API.Services
             var existing = await _repo.GetByIdAsync(id);
             if (existing == null) return false;
 
-            existing.Estado = dto.Estado;
-            existing.Prioridad = dto.Prioridad;
+            existing.Estado          = dto.Estado;
+            existing.Prioridad       = dto.Prioridad;
             existing.FechaProgramada = dto.FechaProgramada;
             existing.FechaRealizacion = dto.FechaRealizacion;
-            existing.Costo = dto.Costo;
-            existing.RealizadoPor = dto.RealizadoPor;
-            existing.Descripcion = dto.Descripcion;
-            existing.EmpleadoId = dto.EmpleadoId;
+            existing.Costo           = dto.Costo;
+            existing.RealizadoPor    = dto.RealizadoPor;
+            existing.Descripcion     = dto.Descripcion;
+            existing.EmpleadoId      = dto.EmpleadoId;
 
             await _repo.SaveChangesAsync();
             return true;
@@ -165,15 +150,12 @@ namespace GoVehiculos.API.Services
 
         public async Task<(bool exito, string mensaje)> IniciarAsync(int id, int empleadoId)
         {
-            var m = await _repo.GetByIdAsync(id);
+            // Búsqueda + validación de permiso centralizadas
+            var (m, error) = await ObtenerYValidarPermisoAsync(id, empleadoId);
+            if (error != null) return (false, error);
 
-            if (m == null)
-                return (false, "Mantenimiento no encontrado.");
-
-            if (m.EmpleadoId != empleadoId)
-                return (false, "No tenés permiso para operar este mantenimiento.");
-
-            if (m.Estado != "pendiente")
+            // Validación de estado específica de esta acción
+            if (m!.Estado != "pendiente")
                 return (false, $"El mantenimiento no puede iniciarse porque está en estado '{m.Estado}'.");
 
             m.Estado = "iniciado";
@@ -183,28 +165,31 @@ namespace GoVehiculos.API.Services
 
         public async Task<(bool exito, string mensaje)> FinalizarAsync(int id, int empleadoId, MantenimientoFinalizarDTO dto)
         {
+            // 1. Validación de campos vacíos o inválidos
+            var errorCampos = ValidarCamposFinalizar(dto);
+            if (errorCampos != null) return (false, errorCampos);
+
+            // 2. Búsqueda + validación de permiso
+            // No usa ObtenerYValidarPermisoAsync porque este método necesita
+            // GetByIdConVehiculoAsync para poder actualizar EstadoMecanico del vehículo.
+            // La lógica es idéntica, pero la query de repositorio es distinta.
             var m = await _repo.GetByIdConVehiculoAsync(id);
+            if (m == null)           return (false, "Mantenimiento no encontrado.");
+            if (m.EmpleadoId != empleadoId) return (false, "No tenés permiso para operar este mantenimiento.");
 
-            if (m == null)
-                return (false, "Mantenimiento no encontrado.");
-
-            if (m.EmpleadoId != empleadoId)
-                return (false, "No tenés permiso para operar este mantenimiento.");
-
+            // 3. Validaciones de estado y reglas de negocio específicas de esta acción
             if (m.Estado != "iniciado")
                 return (false, $"El mantenimiento no puede finalizarse porque está en estado '{m.Estado}'.");
-
-            if (dto.Costo < 0)
-                return (false, "El costo no puede ser negativo.");
 
             if (m.FechaProgramada.HasValue && dto.FechaRealizacion < m.FechaProgramada.Value)
                 return (false, $"La fecha de realización no puede ser anterior a la fecha programada ({m.FechaProgramada.Value:dd/MM/yyyy}).");
 
-            m.Descripcion = dto.Descripcion;
+            // 4. Aplicación de cambios
+            m.Descripcion      = dto.Descripcion;
             m.FechaRealizacion = dto.FechaRealizacion;
-            m.Costo = dto.Costo;
-            m.RealizadoPor = dto.RealizadoPor;
-            m.Estado = "finalizado";
+            m.Costo            = dto.Costo;
+            m.RealizadoPor     = dto.RealizadoPor;
+            m.Estado           = "finalizado";
 
             if (m.Vehiculo != null)
                 m.Vehiculo.EstadoMecanico = "bueno";
@@ -215,19 +200,21 @@ namespace GoVehiculos.API.Services
 
         public async Task<(bool exito, string mensaje)> CancelarAsync(int id, int empleadoId, MantenimientoCancelarDTO dto)
         {
-            var m = await _repo.GetByIdAsync(id);
+            // 1. Validación de campos vacíos o inválidos
+            var errorCampos = ValidarCamposCancelar(dto);
+            if (errorCampos != null) return (false, errorCampos);
 
-            if (m == null)
-                return (false, "Mantenimiento no encontrado.");
+            // 2. Búsqueda + validación de permiso centralizadas
+            var (m, error) = await ObtenerYValidarPermisoAsync(id, empleadoId);
+            if (error != null) return (false, error);
 
-            if (m.EmpleadoId != empleadoId)
-                return (false, "No tenés permiso para operar este mantenimiento.");
-
-            if (m.Estado != "iniciado")
+            // 3. Validación de estado específica de esta acción
+            if (m!.Estado != "iniciado")
                 return (false, $"El mantenimiento no puede cancelarse porque está en estado '{m.Estado}'.");
 
+            // 4. Aplicación de cambios
             m.Descripcion = dto.Descripcion;
-            m.Estado = "cancelado";
+            m.Estado      = "cancelado";
 
             await _repo.SaveChangesAsync();
             return (true, "Mantenimiento cancelado.");
@@ -261,30 +248,158 @@ namespace GoVehiculos.API.Services
         }
 
         // ================================================================
-        // Mapeo privado
+        // Métodos privados — Validaciones de campos
+        //
+        // Verifican que los datos del DTO sean completos y coherentes
+        // antes de tocar la base de datos. Se ejecutan siempre como primer
+        // paso en los métodos públicos que reciben input del usuario.
+        // Devuelven el primer error encontrado, o null si todo está bien.
+        // Son estáticos porque no dependen del estado de la instancia.
         // ================================================================
 
+        private static string? ValidarCamposCreate(MantenimientoCreateDTO dto)
+        {
+            if (string.IsNullOrWhiteSpace(dto.Tipo))        return "El tipo de mantenimiento es obligatorio.";
+            if (string.IsNullOrWhiteSpace(dto.Descripcion)) return "La descripción es obligatoria.";
+            if (string.IsNullOrWhiteSpace(dto.Prioridad))   return "La prioridad es obligatoria.";
+            if (dto.FechaProgramada == default)             return "La fecha programada es obligatoria.";
+            if (dto.FechaProgramada < DateOnly.FromDateTime(DateTime.Today))
+                                                            return "La fecha programada no puede ser anterior a hoy.";
+            return null;
+        }
+
+        private static string? ValidarCamposHabilitar(HabilitarVehiculoSocioDTO dto)
+        {
+            if (string.IsNullOrWhiteSpace(dto.Tipo))        return "El tipo es obligatorio.";
+            if (string.IsNullOrWhiteSpace(dto.Descripcion)) return "La descripción es obligatoria.";
+            if (dto.FechaRealizacion == default)            return "La fecha de realización es obligatoria.";
+            return null;
+        }
+
+        private static string? ValidarCamposFinalizar(MantenimientoFinalizarDTO dto)
+        {
+            if (string.IsNullOrWhiteSpace(dto.Descripcion))  return "La descripción es obligatoria.";
+            if (string.IsNullOrWhiteSpace(dto.RealizadoPor)) return "Debe indicar quién realizó el trabajo.";
+            if (dto.FechaRealizacion == default)             return "La fecha de realización es obligatoria.";
+            if (dto.Costo < 0)                               return "El costo no puede ser negativo.";
+            return null;
+        }
+
+        private static string? ValidarCamposCancelar(MantenimientoCancelarDTO dto)
+        {
+            if (string.IsNullOrWhiteSpace(dto.Descripcion)) return "Debe indicar el motivo de cancelación.";
+            return null;
+        }
+
+        // ================================================================
+        // Métodos privados — Construcción de entidades
+        //
+        // Centralizan la inicialización de Mantenimiento para que los
+        // métodos públicos se enfoquen en orquestación (validar → verificar
+        // negocio → construir → persistir) sin ruido de detalles de
+        // construcción. Cada método corresponde a un flujo con campos y
+        // valores por defecto distintos, por eso son dos métodos separados
+        // y no uno genérico.
+        // Son estáticos porque solo operan sobre el DTO que reciben.
+        // ================================================================
+
+        /// <summary>
+        /// Construye la entidad para una orden generada por el administrador.
+        /// Estado inicial: pendiente. Costo y RealizadoPor se completan al finalizar.
+        /// </summary>
+        private static Mantenimiento CrearOrdenDesdeDTO(MantenimientoCreateDTO dto) => new()
+        {
+            VehiculoId      = dto.VehiculoId,
+            EmpleadoId      = dto.EmpleadoId,
+            Tipo            = dto.Tipo,
+            Descripcion     = dto.Descripcion,
+            Estado          = "pendiente",
+            Prioridad       = dto.Prioridad,
+            FechaProgramada = dto.FechaProgramada,
+            Costo           = 0,
+            RealizadoPor    = string.Empty,
+            Disponibilizado = false
+        };
+
+        /// <summary>
+        /// Construye el registro histórico para un mantenimiento realizado por el socio.
+        /// Estado inicial: finalizado. El vehículo queda disponible inmediatamente.
+        /// </summary>
+        private static Mantenimiento CrearRegistroSocioDesdeDTO(HabilitarVehiculoSocioDTO dto) => new()
+        {
+            VehiculoId       = dto.VehiculoId,
+            EmpleadoId       = null,
+            Tipo             = dto.Tipo,
+            Descripcion      = dto.Descripcion,
+            Estado           = "finalizado",
+            Prioridad        = dto.Prioridad,
+            FechaProgramada  = null,
+            FechaRealizacion = dto.FechaRealizacion,
+            Costo            = 0,
+            RealizadoPor     = "A cargo del Socio",
+            Disponibilizado  = true
+        };
+
+        // ================================================================
+        // Métodos privados — Permiso del empleado
+        //
+        // Iniciar y Cancelar comparten la misma secuencia de arranque:
+        // buscar la orden y verificar que el empleado operador sea el
+        // asignado. Este método centraliza esas dos comprobaciones.
+        //
+        // Finalizar no lo usa porque necesita GetByIdConVehiculoAsync
+        // (incluye navegación al vehículo para actualizar EstadoMecanico)
+        // en lugar de GetByIdAsync. La lógica es la misma, pero la query
+        // de repositorio es distinta, por lo que se replica inline con
+        // un comentario que lo aclara.
+        // ================================================================
+
+        /// <summary>
+        /// Busca la orden y verifica que el empleado tenga permiso para operarla.
+        /// Devuelve (entidad, null) si todo está bien, o (null, mensaje de error) si no.
+        /// </summary>
+        private async Task<(Mantenimiento? mantenimiento, string? error)> ObtenerYValidarPermisoAsync(int id, int empleadoId)
+        {
+            var m = await _repo.GetByIdAsync(id);
+
+            if (m == null)
+                return (null, "Mantenimiento no encontrado.");
+
+            if (m.EmpleadoId != empleadoId)
+                return (null, "No tenés permiso para operar este mantenimiento.");
+
+            return (m, null);
+        }
+
+        // ================================================================
+        // Métodos privados — Mapeo
+        // ================================================================
+
+        /// <summary>
+        /// Convierte una entidad Mantenimiento al DTO de respuesta que consume el frontend.
+        /// Usa el operador ?. para tolerar navegaciones no cargadas sin lanzar excepciones.
+        /// </summary>
         private static MantenimientoResponseDTO ToResponseDTO(Mantenimiento m) => new()
         {
-            IdMantenimiento = m.IdMantenimiento,
-            VehiculoId = m.VehiculoId,
-            VehiculoPatente = m.Vehiculo?.Patente ?? string.Empty,
-            VehiculoMarca = m.Vehiculo?.Modelo?.Marca?.Nombre ?? string.Empty,
-            VehiculoModelo = m.Vehiculo?.Modelo?.Nombre ?? string.Empty,
-            VehiculoEstado = m.Vehiculo?.Estado ?? string.Empty,
-            EmpleadoId = m.EmpleadoId,
-            EmpleadoNombre = m.Empleado != null
-                                   ? $"{m.Empleado.Nombre} {m.Empleado.Apellido}"
-                                   : null,
-            Tipo = m.Tipo,
-            Descripcion = m.Descripcion,
-            Estado = m.Estado,
-            Prioridad = m.Prioridad,
-            FechaProgramada = m.FechaProgramada,
+            IdMantenimiento  = m.IdMantenimiento,
+            VehiculoId       = m.VehiculoId,
+            VehiculoPatente  = m.Vehiculo?.Patente               ?? string.Empty,
+            VehiculoMarca    = m.Vehiculo?.Modelo?.Marca?.Nombre  ?? string.Empty,
+            VehiculoModelo   = m.Vehiculo?.Modelo?.Nombre         ?? string.Empty,
+            VehiculoEstado   = m.Vehiculo?.Estado                ?? string.Empty,
+            EmpleadoId       = m.EmpleadoId,
+            EmpleadoNombre   = m.Empleado != null
+                                 ? $"{m.Empleado.Nombre} {m.Empleado.Apellido}"
+                                 : null,
+            Tipo             = m.Tipo,
+            Descripcion      = m.Descripcion,
+            Estado           = m.Estado,
+            Prioridad        = m.Prioridad,
+            FechaProgramada  = m.FechaProgramada,
             FechaRealizacion = m.FechaRealizacion,
-            Costo = m.Costo,
-            RealizadoPor = m.RealizadoPor,
-            Disponibilizado = m.Disponibilizado,
+            Costo            = m.Costo,
+            RealizadoPor     = m.RealizadoPor,
+            Disponibilizado  = m.Disponibilizado,
         };
     }
 }

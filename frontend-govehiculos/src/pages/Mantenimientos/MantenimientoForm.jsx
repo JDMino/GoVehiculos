@@ -14,7 +14,6 @@ import {
   ChevronDown,
   Gauge,
   MapPin,
-  XCircle,
 } from "lucide-react";
 
 const TIPOS_MANTENIMIENTO = [
@@ -35,28 +34,21 @@ export default function MantenimientoForm() {
   const { vehiculoId } = useParams();
   const navigate       = useNavigate();
 
-  const [loading, setLoading]         = useState(false);
-  const [loadingData, setLoadingData] = useState(true);
-  const [vehiculo, setVehiculo]       = useState(null);
-  const [empleados, setEmpleados]     = useState([]);
+  const [loading, setLoading]           = useState(false);
+  const [loadingData, setLoadingData]   = useState(true);
+  const [vehiculo, setVehiculo]         = useState(null);
+  const [empleados, setEmpleados]       = useState([]);
   const [errorNegocio, setErrorNegocio] = useState(null);
 
   const [form, setForm] = useState({
     vehiculoId:      parseInt(vehiculoId),
-    empleadoId:      "",          // obligatorio
+    empleadoId:      "",
     tipo:            "preventivo",
     descripcion:     "",
     estado:          "pendiente",
     prioridad:       "media",
-    fechaProgramada: "",          // obligatorio
+    fechaProgramada: "",
   });
-
-  // ── Validación en cliente ────────────────────────────────────────────────
-  const formValido =
-    form.empleadoId !== "" &&
-    form.empleadoId !== 0  &&
-    form.fechaProgramada  !== "" &&
-    form.descripcion.trim() !== "";
 
   useEffect(() => {
     const fetchData = async () => {
@@ -79,24 +71,29 @@ export default function MantenimientoForm() {
 
   const handleChange = (e) => {
     const { name, value } = e.target;
+    // Limpiar el error al modificar cualquier campo
+    setErrorNegocio(null);
     setForm((prev) => ({ ...prev, [name]: value }));
   };
 
   const handleSubmit = async (e) => {
     e.preventDefault();
-    if (!formValido) return;
-
     setLoading(true);
     setErrorNegocio(null);
 
+    // Sanitización del payload antes de enviarlo:
+    // parseInt("") devuelve NaN, lo que causa un error de serialización en el backend
+    // antes de llegar al service. Se envía 0 para que ValidarCamposCreate lo rechace
+    // con un mensaje legible ("Debe asignar un empleado...").
+    const empleadoIdParsed = parseInt(form.empleadoId);
     const payload = {
       vehiculoId:      parseInt(vehiculoId),
-      empleadoId:      parseInt(form.empleadoId),
+      empleadoId:      isNaN(empleadoIdParsed) ? 0 : empleadoIdParsed,
       tipo:            form.tipo,
       descripcion:     form.descripcion,
       estado:          "pendiente",
       prioridad:       form.prioridad,
-      fechaProgramada: form.fechaProgramada,
+      fechaProgramada: form.fechaProgramada || null,
     };
 
     try {
@@ -104,16 +101,12 @@ export default function MantenimientoForm() {
       navigate("/mantenimientos");
     } catch (err) {
       if (err.response?.status === 422) {
+        // Mensaje legible devuelto por el service (ValidarCamposCreate o reglas de negocio)
         setErrorNegocio(err.response.data?.mensaje || "No se pudo generar la orden.");
       } else if (err.response?.status === 400) {
-        // Errores de validación del ModelState del backend
-        const errors = err.response.data?.errors;
-        if (errors) {
-          const msgs = Object.values(errors).flat().join(" ");
-          setErrorNegocio(msgs);
-        } else {
-          setErrorNegocio("Datos inválidos. Verificá el formulario.");
-        }
+        // Errores de ModelState — no deberían llegar si el payload está bien sanitizado,
+        // pero se capturan como fallback con un mensaje genérico entendible.
+        setErrorNegocio("Hay campos incompletos o inválidos. Revisá el formulario e intentá de nuevo.");
       } else {
         setErrorNegocio("Error inesperado al crear la orden. Intentá de nuevo.");
       }
@@ -135,6 +128,7 @@ export default function MantenimientoForm() {
 
   return (
     <div className="min-h-screen bg-slate-50">
+
       {/* Header */}
       <div className="bg-gradient-to-r from-slate-900 to-slate-800 text-white">
         <div className="max-w-4xl mx-auto px-6 py-8">
@@ -160,23 +154,6 @@ export default function MantenimientoForm() {
       </div>
 
       <div className="max-w-4xl mx-auto px-6 py-8">
-
-        {/* Banner de error de negocio */}
-        {errorNegocio && (
-          <div className="flex items-start gap-3 bg-red-50 border border-red-200 rounded-2xl px-5 py-4 mb-6">
-            <XCircle className="h-5 w-5 text-red-500 shrink-0 mt-0.5" />
-            <div>
-              <p className="text-sm font-semibold text-red-700">No se pudo generar la orden</p>
-              <p className="text-sm text-red-600 mt-0.5">{errorNegocio}</p>
-              <button
-                onClick={() => navigate("/mantenimientos")}
-                className="text-xs font-semibold text-red-600 underline mt-2"
-              >
-                Volver a la lista de mantenimientos
-              </button>
-            </div>
-          </div>
-        )}
 
         {/* Info del vehículo */}
         {vehiculo && (
@@ -238,7 +215,6 @@ export default function MantenimientoForm() {
                     name="tipo"
                     value={form.tipo}
                     onChange={handleChange}
-                    required
                     className="w-full appearance-none px-4 py-3 bg-slate-50 border border-slate-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-slate-900 text-slate-900 font-medium cursor-pointer"
                   >
                     {TIPOS_MANTENIMIENTO.map((t) => (
@@ -279,7 +255,6 @@ export default function MantenimientoForm() {
                   name="descripcion"
                   value={form.descripcion}
                   onChange={handleChange}
-                  required
                   rows={4}
                   className="w-full px-4 py-3 bg-slate-50 border border-slate-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-slate-900 text-slate-900 placeholder:text-slate-400 resize-none transition-all"
                   placeholder="Describí el trabajo de mantenimiento a realizar..."
@@ -299,7 +274,7 @@ export default function MantenimientoForm() {
             </div>
           </div>
 
-          {/* Planificación — Fecha programada obligatoria */}
+          {/* Planificación */}
           <div className="bg-white rounded-2xl border border-slate-200 overflow-hidden">
             <div className="px-6 py-4 border-b border-slate-100 bg-slate-50">
               <h2 className="font-semibold text-slate-900 flex items-center gap-2">
@@ -319,25 +294,14 @@ export default function MantenimientoForm() {
                     name="fechaProgramada"
                     value={form.fechaProgramada}
                     onChange={handleChange}
-                    required
-                    className={`w-full pl-10 pr-4 py-3 bg-slate-50 border rounded-xl focus:outline-none focus:ring-2 focus:ring-slate-900 text-slate-900 transition-all ${
-                      form.fechaProgramada === ""
-                        ? "border-red-200 bg-red-50/30"
-                        : "border-slate-200"
-                    }`}
+                    className="w-full pl-10 pr-4 py-3 bg-slate-50 border border-slate-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-slate-900 text-slate-900 transition-all"
                   />
                 </div>
-                {form.fechaProgramada === "" && (
-                  <p className="text-xs text-red-500 flex items-center gap-1">
-                    <AlertTriangle className="h-3.5 w-3.5" />
-                    La fecha programada es obligatoria
-                  </p>
-                )}
               </div>
             </div>
           </div>
 
-          {/* Asignación — Empleado obligatorio */}
+          {/* Asignación */}
           <div className="bg-white rounded-2xl border border-slate-200 overflow-hidden">
             <div className="px-6 py-4 border-b border-slate-100 bg-slate-50">
               <h2 className="font-semibold text-slate-900 flex items-center gap-2">
@@ -355,12 +319,7 @@ export default function MantenimientoForm() {
                     name="empleadoId"
                     value={form.empleadoId}
                     onChange={handleChange}
-                    required
-                    className={`w-full appearance-none px-4 py-3 border rounded-xl focus:outline-none focus:ring-2 focus:ring-slate-900 text-slate-900 cursor-pointer ${
-                      form.empleadoId === ""
-                        ? "border-red-200 bg-red-50/30"
-                        : "bg-slate-50 border-slate-200"
-                    }`}
+                    className="w-full appearance-none px-4 py-3 bg-slate-50 border border-slate-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-slate-900 text-slate-900 cursor-pointer"
                   >
                     <option value="">— Seleccioná un empleado —</option>
                     {empleados.map((e) => (
@@ -371,12 +330,6 @@ export default function MantenimientoForm() {
                   </select>
                   <ChevronDown className="absolute right-4 top-1/2 -translate-y-1/2 h-4 w-4 text-slate-400 pointer-events-none" />
                 </div>
-                {form.empleadoId === "" && (
-                  <p className="text-xs text-red-500 flex items-center gap-1">
-                    <AlertTriangle className="h-3.5 w-3.5" />
-                    Debe asignar un empleado para generar la orden
-                  </p>
-                )}
                 {empleados.length === 0 && (
                   <p className="text-xs text-amber-600 flex items-center gap-1 mt-1">
                     <AlertTriangle className="h-3.5 w-3.5" />
@@ -387,33 +340,43 @@ export default function MantenimientoForm() {
             </div>
           </div>
 
-          {/* Actions */}
-          <div className="flex items-center justify-between pt-2">
-            <Link
-              to="/mantenimientos"
-              className="px-6 py-3 text-slate-600 font-semibold hover:text-slate-900 transition-colors"
-            >
-              Cancelar
-            </Link>
-            <button
-              type="submit"
-              disabled={loading || !formValido}
-              title={!formValido ? "Completá todos los campos obligatorios para continuar" : ""}
-              className="inline-flex items-center justify-center px-8 py-3 bg-slate-900 hover:bg-slate-800 disabled:bg-slate-300 disabled:cursor-not-allowed text-white font-semibold rounded-xl transition-all shadow-lg shadow-slate-200 hover:shadow-xl disabled:shadow-none"
-            >
-              {loading ? (
-                <>
-                  <Loader2 className="h-5 w-5 mr-2 animate-spin" />
-                  Generando orden...
-                </>
-              ) : (
-                <>
-                  <CheckCircle className="h-5 w-5 mr-2" />
-                  Crear Orden
-                </>
-              )}
-            </button>
+          {/* Error + Actions — agrupados para que el error aparezca pegado al botón */}
+          <div className="space-y-3 pt-2">
+
+            {errorNegocio && (
+              <div className="flex items-center gap-3 bg-red-50 border border-red-200 rounded-2xl px-5 py-4">
+                <AlertTriangle className="h-5 w-5 text-red-500 shrink-0" />
+                <p className="text-sm font-medium text-red-700">{errorNegocio}</p>
+              </div>
+            )}
+
+            <div className="flex items-center justify-between">
+              <Link
+                to="/mantenimientos"
+                className="px-6 py-3 text-slate-600 font-semibold hover:text-slate-900 transition-colors"
+              >
+                Cancelar
+              </Link>
+              <button
+                type="submit"
+                disabled={loading}
+                className="inline-flex items-center justify-center px-8 py-3 bg-slate-900 hover:bg-slate-800 disabled:bg-slate-600 disabled:cursor-not-allowed text-white font-semibold rounded-xl transition-all shadow-lg shadow-slate-200 hover:shadow-xl"
+              >
+                {loading ? (
+                  <>
+                    <Loader2 className="h-5 w-5 mr-2 animate-spin" />
+                    Generando orden...
+                  </>
+                ) : (
+                  <>
+                    <CheckCircle className="h-5 w-5 mr-2" />
+                    Crear Orden
+                  </>
+                )}
+              </button>
+            </div>
           </div>
+
         </form>
       </div>
     </div>

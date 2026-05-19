@@ -40,15 +40,12 @@ const PRIORIDAD_CONFIG = {
 const ESTADOS_TERMINALES = ["finalizado", "cancelado"];
 
 // ── Helper: resuelve el id del usuario independientemente del casing ─────────
-// El serializador de ASP.NET puede devolver idUsuario, id, userId, etc.
-// según cómo esté configurado y cómo el AuthStore guarde el objeto.
 function resolverEmpleadoId(user) {
   if (!user) return null;
-  // Intentar las variantes más comunes en orden de probabilidad
   return (
-    user.idUsuario   ??   // camelCase ASP.NET por defecto
-    user.IdUsuario   ??   // PascalCase si el serializador no convierte
-    user.id          ??   // genérico
+    user.idUsuario   ??
+    user.IdUsuario   ??
+    user.id          ??
     user.Id          ??
     user.userId      ??
     user.UserId      ??
@@ -157,11 +154,6 @@ export default function MantenimientosEmpleado({ user }) {
   };
 
   const confirmarFinalizar = async () => {
-    if (!formFinalizar.descripcion.trim())   return setErrorAccion("La descripción es obligatoria.");
-    if (!formFinalizar.realizadoPor.trim())  return setErrorAccion("El campo 'Realizado por' es obligatorio.");
-    if (formFinalizar.costo === "" || Number(formFinalizar.costo) < 0)
-      return setErrorAccion("El costo debe ser un número igual o mayor a 0.");
-
     setAccionLoading(true);
     setErrorAccion(null);
     try {
@@ -170,7 +162,7 @@ export default function MantenimientosEmpleado({ user }) {
         {
           descripcion:      formFinalizar.descripcion,
           fechaRealizacion: formFinalizar.fechaRealizacion,
-          costo:            parseFloat(formFinalizar.costo),
+          costo:            formFinalizar.costo === "" ? 0 : parseFloat(formFinalizar.costo),
           realizadoPor:     formFinalizar.realizadoPor,
         }
       );
@@ -190,8 +182,6 @@ export default function MantenimientosEmpleado({ user }) {
   };
 
   const confirmarCancelar = async () => {
-    if (!formCancelar.descripcion.trim()) return setErrorAccion("La descripción / motivo es obligatoria.");
-
     setAccionLoading(true);
     setErrorAccion(null);
     try {
@@ -246,7 +236,7 @@ export default function MantenimientosEmpleado({ user }) {
 
       <div className="max-w-7xl mx-auto px-6 py-8">
 
-        {/* Error de carga — incluye diagnóstico del objeto user */}
+        {/* Error de carga */}
         {errorCarga && (
           <div className="bg-red-50 border border-red-200 rounded-2xl px-5 py-4 mb-6 flex items-start gap-3">
             <AlertTriangle className="h-5 w-5 text-red-500 shrink-0 mt-0.5" />

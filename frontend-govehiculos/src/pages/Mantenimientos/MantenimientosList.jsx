@@ -1,4 +1,3 @@
-
 import { useEffect, useState, useCallback } from "react";
 import api from "../../api/axiosConfig";
 import { useNavigate } from "react-router-dom";
@@ -74,11 +73,11 @@ const SESSION_KEY_HISTORIAL = "mant_historial_visto";
 export default function MantenimientosList() {
   const navigate = useNavigate();
 
-  const [vehiculos, setVehiculos]         = useState([]);
-  const [loading, setLoading]             = useState(true);
-  const [refreshing, setRefreshing]       = useState(false);
-  const [searchTerm, setSearchTerm]       = useState("");
-  const [filtroEstado, setFiltroEstado]   = useState("todos");
+  const [vehiculos, setVehiculos]       = useState([]);
+  const [loading, setLoading]           = useState(true);
+  const [refreshing, setRefreshing]     = useState(false);
+  const [searchTerm, setSearchTerm]     = useState("");
+  const [filtroEstado, setFiltroEstado] = useState("todos");
 
   // Badge de nuevas órdenes en historial
   const [hayNuevasOrdenes, setHayNuevasOrdenes] = useState(false);
@@ -91,7 +90,7 @@ export default function MantenimientosList() {
   // ── Verificar si hay nuevas órdenes terminadas desde la última visita ───
   const verificarNuevasOrdenes = useCallback(async () => {
     try {
-      const res        = await api.get("/mantenimientos/contador-nuevas");
+      const res         = await api.get("/mantenimientos/contador-nuevas");
       const totalActual = res.data.count ?? 0;
       const visto       = parseInt(sessionStorage.getItem(SESSION_KEY_HISTORIAL) ?? "-1", 10);
       // Si nunca visitó el historial (visto === -1) y hay órdenes → mostrar badge
@@ -186,11 +185,8 @@ export default function MantenimientosList() {
 
   const confirmarHabilitar = async () => {
     const vehiculo = modalSocio.vehiculo;
-    if (!formSocio.tipo)               return setSocioError("El tipo es obligatorio.");
-    if (!formSocio.descripcion.trim()) return setSocioError("La descripción es obligatoria.");
-    if (!formSocio.prioridad)          return setSocioError("La prioridad es obligatoria.");
-    if (!formSocio.fechaRealizacion)   return setSocioError("La fecha de realización es obligatoria.");
-
+    // La validación de campos vacíos o inválidos la hace ValidarCamposHabilitar
+    // en el service. El error llega desde el backend vía socioError.
     setSocioLoading(true);
     setSocioError(null);
     try {
@@ -268,10 +264,10 @@ export default function MantenimientosList() {
           {/* Stats */}
           <div className="grid grid-cols-2 sm:grid-cols-4 gap-4 mt-6">
             {[
-              { label: "Total candidatos", value: vehiculos.length, color: "text-white"      },
-              { label: "Estado regular",   value: countRegular,     color: "text-amber-300"  },
-              { label: "Estado malo",      value: countMalo,        color: "text-red-300"    },
-              { label: "Con orden activa", value: countConOrden,    color: "text-blue-300"   },
+              { label: "Total candidatos", value: vehiculos.length, color: "text-white"     },
+              { label: "Estado regular",   value: countRegular,     color: "text-amber-300" },
+              { label: "Estado malo",      value: countMalo,        color: "text-red-300"   },
+              { label: "Con orden activa", value: countConOrden,    color: "text-blue-300"  },
             ].map((s) => (
               <div key={s.label} className="bg-white/10 rounded-xl px-4 py-3 border border-white/10">
                 <p className={`text-2xl font-bold ${s.color}`}>{s.value}</p>
@@ -299,10 +295,10 @@ export default function MantenimientosList() {
           <div className="flex items-center gap-2 flex-wrap">
             <Filter className="h-4 w-4 text-slate-400 shrink-0" />
             {[
-              { key: "todos",     label: "Todos",           count: vehiculos.length },
-              { key: "regular",   label: "Estado regular",  count: countRegular     },
-              { key: "malo",      label: "Estado malo",     count: countMalo        },
-              { key: "con_orden", label: "Con orden activa",count: countConOrden    },
+              { key: "todos",     label: "Todos",            count: vehiculos.length },
+              { key: "regular",   label: "Estado regular",   count: countRegular     },
+              { key: "malo",      label: "Estado malo",      count: countMalo        },
+              { key: "con_orden", label: "Con orden activa", count: countConOrden    },
             ].map((f) => (
               <button
                 key={f.key}
