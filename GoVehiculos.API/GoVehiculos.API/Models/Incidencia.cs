@@ -1,4 +1,5 @@
-﻿using System.ComponentModel.DataAnnotations;
+﻿
+using System.ComponentModel.DataAnnotations;
 
 namespace GoVehiculos.API.Models
 {
@@ -11,9 +12,9 @@ namespace GoVehiculos.API.Models
         public string Tipo { get; set; } = string.Empty;
         public string Descripcion { get; set; } = string.Empty;
         public string NivelGravedad { get; set; } = "media";
-        public string Estado { get; set; } = "registrada";
         public DateTime FechaReporte { get; set; } = DateTime.Now;
 
+        // Navegación
         public Usuario? Usuario { get; set; }
         public Vehiculo? Vehiculo { get; set; }
     }
