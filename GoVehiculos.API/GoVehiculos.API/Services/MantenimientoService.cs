@@ -1,13 +1,42 @@
 using GoVehiculos.API.DTOs;
 using GoVehiculos.API.Models;
 using GoVehiculos.API.Repositories;
+using GoVehiculos.API.Strategies;
 
 namespace GoVehiculos.API.Services
 {
+    /// <summary>
+    /// Contexto del patrón Strategy.
+    ///
+    /// PATRÓN STRATEGY — Contexto:
+    /// En el patrón Strategy el "contexto" es la clase que conoce qué estrategia
+    /// usar según la situación, pero delega la ejecución del algoritmo a la
+    /// estrategia concreta seleccionada. MantenimientoService cumple ese rol:
+    /// recibe la solicitud de acción (iniciar, finalizar, cancelar), selecciona
+    /// la estrategia correspondiente, le pasa la entidad y el DTO, y persiste
+    /// el resultado.
+    ///
+    /// El service no contiene la lógica de cada acción — solo orquesta.
+    /// Esto permite agregar nuevas acciones (ej: "pausar") creando una nueva
+    /// estrategia sin modificar este archivo (Open/Closed Principle).
+    /// </summary>
     public class MantenimientoService
     {
         private readonly IMantenimientoRepository _repo;
         private readonly IVehiculoRepository _vehiculoRepo;
+
+        // ================================================================
+        // Estrategias registradas en el contexto.
+        //
+        // PATRÓN STRATEGY — Registro de estrategias:
+        // Cada estrategia es una instancia de una clase que implementa
+        // IAccionMantenimientoStrategy. Al instanciarlas aquí (o inyectarlas
+        // por DI si se prefiere), el contexto las tiene disponibles sin
+        // acoplarse a sus implementaciones concretas.
+        // ================================================================
+        private readonly IAccionMantenimientoStrategy _iniciarStrategy   = new IniciarStrategy();
+        private readonly IAccionMantenimientoStrategy _finalizarStrategy = new FinalizarStrategy();
+        private readonly IAccionMantenimientoStrategy _cancelarStrategy  = new CancelarStrategy();
 
         public MantenimientoService(IMantenimientoRepository repo, IVehiculoRepository vehiculoRepo)
         {
@@ -121,14 +150,14 @@ namespace GoVehiculos.API.Services
             var existing = await _repo.GetByIdAsync(id);
             if (existing == null) return false;
 
-            existing.Estado          = dto.Estado;
-            existing.Prioridad       = dto.Prioridad;
-            existing.FechaProgramada = dto.FechaProgramada;
+            existing.Estado           = dto.Estado;
+            existing.Prioridad        = dto.Prioridad;
+            existing.FechaProgramada  = dto.FechaProgramada;
             existing.FechaRealizacion = dto.FechaRealizacion;
-            existing.Costo           = dto.Costo;
-            existing.RealizadoPor    = dto.RealizadoPor;
-            existing.Descripcion     = dto.Descripcion;
-            existing.EmpleadoId      = dto.EmpleadoId;
+            existing.Costo            = dto.Costo;
+            existing.RealizadoPor     = dto.RealizadoPor;
+            existing.Descripcion      = dto.Descripcion;
+            existing.EmpleadoId       = dto.EmpleadoId;
 
             await _repo.SaveChangesAsync();
             return true;
@@ -146,78 +175,66 @@ namespace GoVehiculos.API.Services
 
         // ================================================================
         // PARTE 2 — Vista del empleado
+        //
+        // PATRÓN STRATEGY — Métodos de despacho:
+        // Cada método público selecciona la estrategia correspondiente,
+        // carga la entidad con la query correcta para esa acción, y delega
+        // la ejecución. El service no contiene ninguna lógica de transición
+        // de estado — eso es responsabilidad exclusiva de cada estrategia.
+        //
+        // Si se agrega una nueva acción (ej: "pausar"), basta con crear
+        // PausarStrategy e implementar un método EjecutarAccionAsync aquí
+        // que la invoque. Este archivo no necesita cambios estructurales.
         // ================================================================
 
         public async Task<(bool exito, string mensaje)> IniciarAsync(int id, int empleadoId)
         {
-            // Búsqueda + validación de permiso centralizadas
-            var (m, error) = await ObtenerYValidarPermisoAsync(id, empleadoId);
-            if (error != null) return (false, error);
+            // IniciarStrategy no necesita navegación al vehículo
+            var m = await _repo.GetByIdAsync(id);
+            if (m == null) return (false, "Mantenimiento no encontrado.");
 
-            // Validación de estado específica de esta acción
-            if (m!.Estado != "pendiente")
-                return (false, $"El mantenimiento no puede iniciarse porque está en estado '{m.Estado}'.");
+            // Delegación a la estrategia: el service no sabe cómo se inicia, solo a quién pedírselo
+            var (exito, mensaje) = await _iniciarStrategy.EjecutarAsync(m, empleadoId);
+            if (!exito) return (false, mensaje);
 
-            m.Estado = "iniciado";
             await _repo.SaveChangesAsync();
-            return (true, "Mantenimiento iniciado correctamente.");
+            return (true, mensaje);
         }
 
         public async Task<(bool exito, string mensaje)> FinalizarAsync(int id, int empleadoId, MantenimientoFinalizarDTO dto)
         {
-            // 1. Validación de campos vacíos o inválidos
+            // 1. Validación de campos antes de tocar la base de datos
             var errorCampos = ValidarCamposFinalizar(dto);
             if (errorCampos != null) return (false, errorCampos);
 
-            // 2. Búsqueda + validación de permiso
-            // No usa ObtenerYValidarPermisoAsync porque este método necesita
-            // GetByIdConVehiculoAsync para poder actualizar EstadoMecanico del vehículo.
-            // La lógica es idéntica, pero la query de repositorio es distinta.
+            // FinalizarStrategy necesita la navegación al Vehiculo para actualizar EstadoMecanico
             var m = await _repo.GetByIdConVehiculoAsync(id);
-            if (m == null)           return (false, "Mantenimiento no encontrado.");
-            if (m.EmpleadoId != empleadoId) return (false, "No tenés permiso para operar este mantenimiento.");
+            if (m == null) return (false, "Mantenimiento no encontrado.");
 
-            // 3. Validaciones de estado y reglas de negocio específicas de esta acción
-            if (m.Estado != "iniciado")
-                return (false, $"El mantenimiento no puede finalizarse porque está en estado '{m.Estado}'.");
-
-            if (m.FechaProgramada.HasValue && dto.FechaRealizacion < m.FechaProgramada.Value)
-                return (false, $"La fecha de realización no puede ser anterior a la fecha programada ({m.FechaProgramada.Value:dd/MM/yyyy}).");
-
-            // 4. Aplicación de cambios
-            m.Descripcion      = dto.Descripcion;
-            m.FechaRealizacion = dto.FechaRealizacion;
-            m.Costo            = dto.Costo;
-            m.RealizadoPor     = dto.RealizadoPor;
-            m.Estado           = "finalizado";
-
-            if (m.Vehiculo != null)
-                m.Vehiculo.EstadoMecanico = "bueno";
+            // El DTO se pasa como contexto — la estrategia lo casteará internamente
+            var (exito, mensaje) = await _finalizarStrategy.EjecutarAsync(m, empleadoId, dto);
+            if (!exito) return (false, mensaje);
 
             await _repo.SaveChangesAsync();
-            return (true, "Mantenimiento finalizado correctamente.");
+            return (true, mensaje);
         }
 
         public async Task<(bool exito, string mensaje)> CancelarAsync(int id, int empleadoId, MantenimientoCancelarDTO dto)
         {
-            // 1. Validación de campos vacíos o inválidos
+            // 1. Validación de campos antes de tocar la base de datos
             var errorCampos = ValidarCamposCancelar(dto);
             if (errorCampos != null) return (false, errorCampos);
 
-            // 2. Búsqueda + validación de permiso centralizadas
-            var (m, error) = await ObtenerYValidarPermisoAsync(id, empleadoId);
-            if (error != null) return (false, error);
+            // CancelarStrategy solo necesita la entidad básica
+            var m = await _repo.GetByIdAsync(id);
+            if (m == null) return (false, "Mantenimiento no encontrado.");
 
-            // 3. Validación de estado específica de esta acción
-            if (m!.Estado != "iniciado")
-                return (false, $"El mantenimiento no puede cancelarse porque está en estado '{m.Estado}'.");
-
-            // 4. Aplicación de cambios
-            m.Descripcion = dto.Descripcion;
-            m.Estado      = "cancelado";
+            // El DTO se pasa como contexto — la estrategia lo casteará internamente
+            var (exito, mensaje) = await _cancelarStrategy.EjecutarAsync(m, empleadoId, dto);
+            if (!exito) return (false, mensaje);
 
             await _repo.SaveChangesAsync();
-            return (true, "Mantenimiento cancelado.");
+            return (true, mensaje);
         }
 
         // ================================================================
@@ -262,7 +279,7 @@ namespace GoVehiculos.API.Services
             if (string.IsNullOrWhiteSpace(dto.Tipo))        return "El tipo de mantenimiento es obligatorio.";
             if (string.IsNullOrWhiteSpace(dto.Descripcion)) return "La descripción es obligatoria.";
             if (string.IsNullOrWhiteSpace(dto.Prioridad))   return "La prioridad es obligatoria.";
-            if (dto.FechaProgramada == default)             return "La fecha programada es obligatoria.";
+            if (dto.FechaProgramada == null)                return "La fecha programada es obligatoria.";
             if (dto.FechaProgramada < DateOnly.FromDateTime(DateTime.Today))
                                                             return "La fecha programada no puede ser anterior a hoy.";
             return null;
@@ -295,12 +312,8 @@ namespace GoVehiculos.API.Services
         // Métodos privados — Construcción de entidades
         //
         // Centralizan la inicialización de Mantenimiento para que los
-        // métodos públicos se enfoquen en orquestación (validar → verificar
-        // negocio → construir → persistir) sin ruido de detalles de
-        // construcción. Cada método corresponde a un flujo con campos y
-        // valores por defecto distintos, por eso son dos métodos separados
-        // y no uno genérico.
-        // Son estáticos porque solo operan sobre el DTO que reciben.
+        // métodos públicos se enfoquen en orquestación sin ruido de detalles
+        // de construcción. Son estáticos porque solo operan sobre el DTO.
         // ================================================================
 
         /// <summary>
@@ -339,37 +352,6 @@ namespace GoVehiculos.API.Services
             RealizadoPor     = "A cargo del Socio",
             Disponibilizado  = true
         };
-
-        // ================================================================
-        // Métodos privados — Permiso del empleado
-        //
-        // Iniciar y Cancelar comparten la misma secuencia de arranque:
-        // buscar la orden y verificar que el empleado operador sea el
-        // asignado. Este método centraliza esas dos comprobaciones.
-        //
-        // Finalizar no lo usa porque necesita GetByIdConVehiculoAsync
-        // (incluye navegación al vehículo para actualizar EstadoMecanico)
-        // en lugar de GetByIdAsync. La lógica es la misma, pero la query
-        // de repositorio es distinta, por lo que se replica inline con
-        // un comentario que lo aclara.
-        // ================================================================
-
-        /// <summary>
-        /// Busca la orden y verifica que el empleado tenga permiso para operarla.
-        /// Devuelve (entidad, null) si todo está bien, o (null, mensaje de error) si no.
-        /// </summary>
-        private async Task<(Mantenimiento? mantenimiento, string? error)> ObtenerYValidarPermisoAsync(int id, int empleadoId)
-        {
-            var m = await _repo.GetByIdAsync(id);
-
-            if (m == null)
-                return (null, "Mantenimiento no encontrado.");
-
-            if (m.EmpleadoId != empleadoId)
-                return (null, "No tenés permiso para operar este mantenimiento.");
-
-            return (m, null);
-        }
 
         // ================================================================
         // Métodos privados — Mapeo
