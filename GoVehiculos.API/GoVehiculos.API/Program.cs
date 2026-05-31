@@ -1,4 +1,5 @@
 using GoVehiculos.API.Data;
+using GoVehiculos.API.Observers;
 using GoVehiculos.API.Services;
 using GoVehiculos.API.Repositories;
 using Microsoft.AspNetCore.Authentication.JwtBearer;
@@ -38,22 +39,56 @@ builder.Services.AddAuthentication(JwtBearerDefaults.AuthenticationScheme)
         };
     });
 
-//Servicios
 builder.Services.AddControllers();
 builder.Services.AddEndpointsApiExplorer();
 builder.Services.AddSwaggerGen();
 
+// ============================
+// Servicios — existentes
+// ============================
 builder.Services.AddScoped<AuthService>();
 builder.Services.AddScoped<UsuarioService>();
 builder.Services.AddScoped<VehiculoService>();
-
 builder.Services.AddScoped<MantenimientoService>();
 
-//Repositories
+// ============================
+// Servicios — módulo de multas
+// ============================
+builder.Services.AddScoped<IncidenciaService>();
+builder.Services.AddScoped<PenalizacionService>();
+builder.Services.AddScoped<MultaService>();
+
+// ============================
+// Repositorios — existentes
+// ============================
 builder.Services.AddScoped<IMantenimientoRepository, MantenimientoRepository>();
 builder.Services.AddScoped<IVehiculoRepository, VehiculoRepository>();
 builder.Services.AddScoped<IUsuarioRepository, UsuarioRepository>();
 builder.Services.AddScoped<IAuthRepository, AuthRepository>();
+
+// ============================
+// Repositorios — módulo de multas
+// ============================
+builder.Services.AddScoped<IIncidenciaRepository, IncidenciaRepository>();
+builder.Services.AddScoped<IMultaRepository, MultaRepository>();
+builder.Services.AddScoped<IPenalizacionRepository, PenalizacionRepository>();
+
+// ============================
+// Observadores — módulo de multas
+//
+// PATRÓN OBSERVADOR — Registro de observadores:
+// Cada observador se registra como implementación de IMultaObserver.
+// El contenedor de DI los inyecta como IEnumerable<IMultaObserver>
+// en el constructor de MultaService, quien los recorre al notificar.
+//
+// Se registran como Scoped porque dependen de repositorios que también
+// son Scoped. Agregar un nuevo efecto secundario implica únicamente
+// crear la clase observadora y añadir una línea aquí, sin tocar
+// MultaService ni ningún otro archivo existente.
+// ============================
+builder.Services.AddScoped<IMultaObserver, EstadoMecanicoObserver>();
+builder.Services.AddScoped<IMultaObserver, BloqueoUsuarioObserver>();
+builder.Services.AddScoped<IMultaObserver, InhabilitacionVehiculoObserver>();
 
 var app = builder.Build();
 

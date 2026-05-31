@@ -1,4 +1,10 @@
-import { BrowserRouter, Routes, Route, Navigate, useLocation } from "react-router-dom";
+import {
+  BrowserRouter,
+  Routes,
+  Route,
+  Navigate,
+  useLocation,
+} from "react-router-dom";
 import useAuthStore from "./context/AuthStore";
 
 // Componentes Globales
@@ -18,15 +24,20 @@ import VehiculoForm from "./pages/Vehiculos/VehiculoForm";
 import VehiculoEdit from "./pages/Vehiculos/VehiculoEdit";
 
 // Mantenimientos — vistas separadas por rol
-import MantenimientosList    from "./pages/Mantenimientos/MantenimientosList";
-import MantenimientoForm     from "./pages/Mantenimientos/MantenimientoForm";
-import MantenimientosEmpleado  from "./pages/Mantenimientos/MantenimientosEmpleado";
+import MantenimientosList from "./pages/Mantenimientos/MantenimientosList";
+import MantenimientoForm from "./pages/Mantenimientos/MantenimientoForm";
+import MantenimientosEmpleado from "./pages/Mantenimientos/MantenimientosEmpleado";
 import MantenimientosHistorial from "./pages/Mantenimientos/MantenimientosHistorial";
 
+// Multas — solo administrador
+import MultasList from "./pages/Multas/MultasList";
+import MultasForm from "./pages/Multas/MultasForm";
+import MultasEdit from "./pages/Multas/MultasEdit";
+
 const ROLES = {
-  CLIENTE:       1,
-  SOCIO:         2,
-  EMPLEADO:      3,
+  CLIENTE: 1,
+  SOCIO: 2,
+  EMPLEADO: 3,
   ADMINISTRADOR: 4,
 };
 
@@ -65,7 +76,8 @@ const Layout = ({ children }) => {
 const MantenimientosRouter = () => {
   const { user } = useAuthStore();
   if (user?.rolId === ROLES.ADMINISTRADOR) return <MantenimientosList />;
-  if (user?.rolId === ROLES.EMPLEADO)      return <MantenimientosEmpleado user={user} />;
+  if (user?.rolId === ROLES.EMPLEADO)
+    return <MantenimientosEmpleado user={user} />;
   return <Navigate to="/home" replace />;
 };
 
@@ -79,11 +91,11 @@ export default function App() {
           <Route path="/" element={<Navigate to="/home" replace />} />
 
           {/* Rutas públicas */}
-          <Route path="/home"     element={<Home />}     />
-          <Route path="/login"    element={<Login />}    />
+          <Route path="/home" element={<Home />} />
+          <Route path="/login" element={<Login />} />
           <Route path="/register" element={<Register />} />
 
-          {/* Dashboard — empleado y administrador */}
+          {/* Dashboard — solo administrador */}
           <Route
             path="/dashboard"
             element={
@@ -97,7 +109,14 @@ export default function App() {
           <Route
             path="/vehiculos"
             element={
-              <ProtectedRoute allowedRoles={[ROLES.CLIENTE, ROLES.SOCIO, ROLES.EMPLEADO, ROLES.ADMINISTRADOR]}>
+              <ProtectedRoute
+                allowedRoles={[
+                  ROLES.CLIENTE,
+                  ROLES.SOCIO,
+                  ROLES.EMPLEADO,
+                  ROLES.ADMINISTRADOR,
+                ]}
+              >
                 <VehiculosList />
               </ProtectedRoute>
             }
@@ -151,7 +170,9 @@ export default function App() {
           <Route
             path="/mantenimientos"
             element={
-              <ProtectedRoute allowedRoles={[ROLES.EMPLEADO, ROLES.ADMINISTRADOR]}>
+              <ProtectedRoute
+                allowedRoles={[ROLES.EMPLEADO, ROLES.ADMINISTRADOR]}
+              >
                 <MantenimientosRouter />
               </ProtectedRoute>
             }
@@ -173,6 +194,38 @@ export default function App() {
             element={
               <ProtectedRoute allowedRoles={[ROLES.ADMINISTRADOR]}>
                 <MantenimientoForm />
+              </ProtectedRoute>
+            }
+          />
+
+          {/* ── MULTAS ─────────────────────────────────────────────────── */}
+
+          {/* Listado — solo administrador */}
+          <Route
+            path="/multas"
+            element={
+              <ProtectedRoute allowedRoles={[ROLES.ADMINISTRADOR]}>
+                <MultasList />
+              </ProtectedRoute>
+            }
+          />
+
+          {/* Crear multa — solo administrador */}
+          <Route
+            path="/multas/nueva"
+            element={
+              <ProtectedRoute allowedRoles={[ROLES.ADMINISTRADOR]}>
+                <MultasForm />
+              </ProtectedRoute>
+            }
+          />
+
+          {/* Editar multa — solo administrador */}
+          <Route
+            path="/multas/:id/editar"
+            element={
+              <ProtectedRoute allowedRoles={[ROLES.ADMINISTRADOR]}>
+                <MultasEdit />
               </ProtectedRoute>
             }
           />
