@@ -10,12 +10,12 @@ export default function Login() {
   const [password, setPassword] = useState("");
   const [loading, setLoading] = useState(false);
   const [showPassword, setShowPassword] = useState(false);
-  const [errorMessage, setErrorMessage] = useState(""); 
+  const [errorMessage, setErrorMessage] = useState("");
 
   const handleSubmit = async (e) => {
     e.preventDefault();
     setLoading(true);
-    setErrorMessage(""); // limpiamos error previo
+    setErrorMessage("");
 
     const result = await login(email, password);
     setLoading(false);
@@ -28,7 +28,13 @@ export default function Login() {
         navigate("/dashboard");
       }
     } else {
-      setErrorMessage("Credenciales inválidas o cuenta inactiva. Contacta al administrador.");
+      // Muestra el mensaje descriptivo que devuelve el backend
+      // (cuenta inactiva, cuenta bloqueada, etc.).
+      // Si el backend no envió mensaje (credenciales incorrectas → 401),
+      // se usa el fallback genérico.
+      setErrorMessage(
+        result.errorMessage || "Credenciales inválidas. Verificá tu email y contraseña."
+      );
     }
   };
 

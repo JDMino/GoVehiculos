@@ -19,10 +19,16 @@ namespace GoVehiculos.API.Controllers
         public async Task<IActionResult> Login(LoginRequest request)
         {
             var result = await _authService.LoginAsync(request);
-            if (result == null) return Unauthorized("Credenciales inválidas");
-            if (!string.IsNullOrEmpty(result.ErrorMessage)) return BadRequest(result.ErrorMessage);
+
+            if (result == null) 
+                return Unauthorized(new { errorMessage = "Credenciales inválidas" });
+
+            if (!string.IsNullOrEmpty(result.ErrorMessage)) 
+                return BadRequest(result);
+
             return Ok(result);
         }
+
 
         [HttpPost("register")]
         public async Task<IActionResult> Register(RegisterRequest request)

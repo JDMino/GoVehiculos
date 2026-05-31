@@ -1,5 +1,6 @@
 ﻿using GoVehiculos.API.Data;
 using GoVehiculos.API.Models;
+using Microsoft.Data.SqlClient;
 using Microsoft.EntityFrameworkCore;
 
 namespace GoVehiculos.API.Repositories
@@ -11,9 +12,28 @@ namespace GoVehiculos.API.Repositories
         Task<Multa?> GetByIdAsync(int id);
         Task<Multa?> GetByIdSimpleAsync(int id);
 
-        // Persistencia
+        // Persistencia general
         Task AddAsync(Multa multa);
         Task SaveChangesAsync();
+
+        // ── NUEVO — Procedimiento almacenado ──────────────────────────
+        // ANTES: MultaService.CancelarAsync() usaba GetByIdSimpleAsync
+        // para cargar la multa, modificaba sus propiedades en memoria
+        // (estado, descripcion), luego usaba PenalizacionRepository
+        // .GetByMultaIdAsync() para cargar la penalización y modificaba
+        // su estado en memoria, y finalmente llamaba SaveChangesAsync()
+        // que emitía los dos UPDATE como statements separados en la
+        // transacción implícita de EF. En total: 2 queries + 1 SaveChanges.
+        //
+        // DESPUÉS: este método ejecuta SP_CancelarMulta en una sola
+        // llamada. El SP verifica existencia, estado previo, construye
+        // la descripción con el motivo, actualiza Multa y Penalizacion
+        // en una única transacción atómica en SQL Server.
+        // En total: 1 llamada a la BD.
+        // ─────────────────────────────────────────────────────────────
+        Task<(bool exito, string mensaje)> CancelarConSPAsync(
+            int    idMulta,
+            string motivoCancelacion);
     }
 
     public class MultaRepository : IMultaRepository
@@ -29,24 +49,10 @@ namespace GoVehiculos.API.Repositories
         // CONSULTAS
         // ================================================================
 
-        /// <summary>
-        /// Devuelve todas las multas con sus navegaciones completas (Incidencia → Usuario
-        /// y Vehículo) para construir los DTOs de respuesta del listado sin llamadas
-        /// adicionales.
-        ///
-        /// La Penalización NO se incluye aquí porque la FK está en la dirección inversa
-        /// (Penalizacion.MultaId → Multa). MultaService la resuelve en lote con
-        /// IPenalizacionRepository.GetByMultaIdsAsync para evitar el problema N+1.
-        ///
-        /// Admite filtros opcionales combinables:
-        ///   estado         — filtra por Multa.Estado (pendiente | pagada | cancelada)
-        ///   tipoIncidencia — filtra por Incidencia.Tipo
-        ///   nivelGravedad  — filtra por Incidencia.NivelGravedad
-        /// </summary>
         public async Task<List<Multa>> GetAllAsync(
-            string? estado = null,
+            string? estado         = null,
             string? tipoIncidencia = null,
-            string? nivelGravedad = null)
+            string? nivelGravedad  = null)
         {
             var query = _context.Multas
                 .Include(m => m.Incidencia)
@@ -71,13 +77,6 @@ namespace GoVehiculos.API.Repositories
                 .ToListAsync();
         }
 
-        /// <summary>
-        /// Devuelve una multa por ID con todas sus navegaciones de Incidencia cargadas.
-        /// Usado para construir el MultaResponseDTO completo en GetById y Update.
-        ///
-        /// La Penalización NO se incluye aquí porque la FK está en la dirección inversa.
-        /// MultaService la resuelve con IPenalizacionRepository.GetByMultaIdAsync.
-        /// </summary>
         public async Task<Multa?> GetByIdAsync(int id)
         {
             return await _context.Multas
@@ -90,18 +89,13 @@ namespace GoVehiculos.API.Repositories
                 .FirstOrDefaultAsync(m => m.IdMulta == id);
         }
 
-        /// <summary>
-        /// Sin includes — para operaciones de escritura donde solo se necesita
-        /// la entidad Multa (cancelar, verificar estado).
-        /// Evita el costo de cargar el grafo completo cuando no se necesita.
-        /// </summary>
         public async Task<Multa?> GetByIdSimpleAsync(int id)
         {
             return await _context.Multas.FindAsync(id);
         }
 
         // ================================================================
-        // PERSISTENCIA
+        // PERSISTENCIA GENERAL
         // ================================================================
 
         public async Task AddAsync(Multa multa)
@@ -112,6 +106,39 @@ namespace GoVehiculos.API.Repositories
         public async Task SaveChangesAsync()
         {
             await _context.SaveChangesAsync();
+        }
+
+        // ================================================================
+        // PROCEDIMIENTO ALMACENADO — Cancelar multa
+        // ================================================================
+
+        public async Task<(bool exito, string mensaje)> CancelarConSPAsync(
+            int    idMulta,
+            string motivoCancelacion)
+        {
+            var pIdMulta = new SqlParameter("@IdMulta", idMulta);
+            var pMotivo  = new SqlParameter("@MotivoCancelacion",
+                string.IsNullOrWhiteSpace(motivoCancelacion)
+                    ? (object)DBNull.Value
+                    : motivoCancelacion.Trim());
+
+            var pExito = new SqlParameter("@Exito", System.Data.SqlDbType.Bit)
+            {
+                Direction = System.Data.ParameterDirection.Output
+            };
+            var pMensaje = new SqlParameter("@Mensaje", System.Data.SqlDbType.NVarChar, 300)
+            {
+                Direction = System.Data.ParameterDirection.Output
+            };
+
+            await _context.Database.ExecuteSqlRawAsync(
+                "EXEC SP_CancelarMulta @IdMulta, @MotivoCancelacion, @Exito OUTPUT, @Mensaje OUTPUT",
+                pIdMulta, pMotivo, pExito, pMensaje);
+
+            var exito   = (bool)pExito.Value;
+            var mensaje = pMensaje.Value?.ToString() ?? string.Empty;
+
+            return (exito, mensaje);
         }
     }
 }

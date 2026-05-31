@@ -30,13 +30,27 @@ namespace GoVehiculos.API.Services
             {
                 return new LoginResponse
                 {
-                    ErrorMessage = "Tu cuenta está inactiva. Contacta al administrador.",
-                    Token = string.Empty,
+                    ErrorMessage = "Tu cuenta está inactiva. Contactá al administrador.",
+                    Token     = string.Empty,
                     IdUsuario = user.IdUsuario,
-                    RolId = user.RolId,
-                    Nombre = user.Nombre,
-                    Apellido = user.Apellido,
-                    Email = user.Email
+                    RolId     = user.RolId,
+                    Nombre    = user.Nombre,
+                    Apellido  = user.Apellido,
+                    Email     = user.Email
+                };
+            }
+
+            if (user.Bloqueado)
+            {
+                return new LoginResponse
+                {
+                    ErrorMessage = "Tu cuenta está bloqueada debido a una sanción activa. Contactá al administrador para más información.",
+                    Token     = string.Empty,
+                    IdUsuario = user.IdUsuario,
+                    RolId     = user.RolId,
+                    Nombre    = user.Nombre,
+                    Apellido  = user.Apellido,
+                    Email     = user.Email
                 };
             }
 
@@ -44,12 +58,12 @@ namespace GoVehiculos.API.Services
 
             return new LoginResponse
             {
-                Token = token,
+                Token     = token,
                 IdUsuario = user.IdUsuario,
-                RolId = user.RolId,
-                Nombre = user.Nombre,
-                Apellido = user.Apellido,
-                Email = user.Email
+                RolId     = user.RolId,
+                Nombre    = user.Nombre,
+                Apellido  = user.Apellido,
+                Email     = user.Email
             };
         }
 
@@ -57,13 +71,13 @@ namespace GoVehiculos.API.Services
         {
             var user = new Usuario
             {
-                Nombre = request.Nombre,
-                Apellido = request.Apellido,
-                Email = request.Email,
-                Dni = request.Dni,
+                Nombre       = request.Nombre,
+                Apellido     = request.Apellido,
+                Email        = request.Email,
+                Dni          = request.Dni,
                 PasswordHash = BCrypt.Net.BCrypt.HashPassword(request.Password),
-                RolId = request.RolId,
-                DireccionId = request.DireccionId
+                RolId        = request.RolId,
+                DireccionId  = request.DireccionId
             };
 
             await _repo.AddAsync(user);
@@ -83,14 +97,14 @@ namespace GoVehiculos.API.Services
                 new Claim("rol_id", user.RolId.ToString())
             };
 
-            var key = new SymmetricSecurityKey(Encoding.UTF8.GetBytes(_config["Jwt:Key"]));
+            var key   = new SymmetricSecurityKey(Encoding.UTF8.GetBytes(_config["Jwt:Key"]));
             var creds = new SigningCredentials(key, SecurityAlgorithms.HmacSha256);
 
             var token = new JwtSecurityToken(
-                issuer: _config["Jwt:Issuer"],
-                audience: _config["Jwt:Audience"],
-                claims: claims,
-                expires: DateTime.Now.AddHours(2),
+                issuer:            _config["Jwt:Issuer"],
+                audience:          _config["Jwt:Audience"],
+                claims:            claims,
+                expires:           DateTime.Now.AddHours(2),
                 signingCredentials: creds
             );
 

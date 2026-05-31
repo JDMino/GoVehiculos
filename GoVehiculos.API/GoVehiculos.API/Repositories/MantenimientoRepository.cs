@@ -1,34 +1,52 @@
 ﻿using GoVehiculos.API.Data;
 using GoVehiculos.API.Models;
+using Microsoft.Data.SqlClient;
 using Microsoft.EntityFrameworkCore;
 
 namespace GoVehiculos.API.Repositories
 {
     public interface IMantenimientoRepository
     {
-        // Contadores (protagonista: Mantenimientos)
         Task<int> ContarPendientesPorEmpleadoAsync(int empleadoId);
         Task<int> ContarTerminadosAsync();
-
-        // Consultas
         Task<List<Mantenimiento>> GetAllAsync(string? estado = null);
         Task<Mantenimiento?> GetByIdAsync(int id);
         Task<Mantenimiento?> GetByIdConVehiculoAsync(int id);
         Task<List<Mantenimiento>> GetByEmpleadoAsync(int empleadoId);
         Task<List<Mantenimiento>> GetActivosPorVehiculosAsync(List<int> vehiculoIds);
         Task<bool> TieneActivoAsync(int vehiculoId);
-
-        // Persistencia
         Task AddAsync(Mantenimiento mantenimiento);
         Task DeleteAsync(int id);
         Task SaveChangesAsync();
+
+        // ── NUEVO — Procedimiento almacenado ──────────────────────────
+        // ANTES: la creación se hacía en MantenimientoService.CreateAsync()
+        // con múltiples queries LINQ separadas (verificar vehículo,
+        // verificar orden activa, etc.) más un AddAsync + SaveChangesAsync
+        // que emitía el INSERT en Mantenimiento y el UPDATE en Vehiculo
+        // como dos statements en la transacción implícita de EF.
+        // En total: 3 queries a la BD + 1 SaveChangesAsync.
+        //
+        // DESPUÉS: este método ejecuta SP_CrearOrdenMantenimiento en una
+        // sola llamada. El SP valida, inserta y actualiza en una única
+        // transacción atómica del lado del servidor, devolviendo el ID
+        // generado por SCOPE_IDENTITY() via parámetro OUTPUT.
+        // En total: 1 llamada a la BD.
+        // ─────────────────────────────────────────────────────────────
+        Task<(bool exito, string mensaje, int idMantenimiento)> CrearConSPAsync(
+            int      vehiculoId,
+            int      empleadoId,
+            string   tipo,
+            string   descripcion,
+            string   prioridad,
+            DateOnly fechaProgramada);
     }
 
     public class MantenimientoRepository : IMantenimientoRepository
     {
         private readonly ApplicationDbContext _context;
 
-        private static readonly string[] EstadosActivos = ["pendiente", "en_proceso", "iniciado"];
+        private static readonly string[] EstadosActivos    = ["pendiente", "en_proceso", "iniciado"];
         private static readonly string[] EstadosTerminales = ["finalizado", "cancelado"];
 
         public MantenimientoRepository(ApplicationDbContext context)
@@ -80,9 +98,6 @@ namespace GoVehiculos.API.Repositories
                 .FirstOrDefaultAsync(m => m.IdMantenimiento == id);
         }
 
-        /// <summary>
-        /// Solo incluye Vehiculo — para Finalizar y Disponibilizar donde no se necesita Marca/Modelo.
-        /// </summary>
         public async Task<Mantenimiento?> GetByIdConVehiculoAsync(int id)
         {
             return await _context.Mantenimientos
@@ -100,9 +115,6 @@ namespace GoVehiculos.API.Repositories
                 .ToListAsync();
         }
 
-        /// <summary>
-        /// Usado por VehiculoService para armar la vista de candidatos.
-        /// </summary>
         public async Task<List<Mantenimiento>> GetActivosPorVehiculosAsync(List<int> vehiculoIds)
         {
             return await _context.Mantenimientos
@@ -121,7 +133,7 @@ namespace GoVehiculos.API.Repositories
         }
 
         // ================================================================
-        // PERSISTENCIA
+        // PERSISTENCIA GENERAL
         // ================================================================
 
         public async Task AddAsync(Mantenimiento mantenimiento)
@@ -139,6 +151,53 @@ namespace GoVehiculos.API.Repositories
         public async Task SaveChangesAsync()
         {
             await _context.SaveChangesAsync();
+        }
+
+        // ================================================================
+        // PROCEDIMIENTO ALMACENADO — Crear orden de mantenimiento
+        // ================================================================
+
+        public async Task<(bool exito, string mensaje, int idMantenimiento)> CrearConSPAsync(
+            int      vehiculoId,
+            int      empleadoId,
+            string   tipo,
+            string   descripcion,
+            string   prioridad,
+            DateOnly fechaProgramada)
+        {
+            var pVehiculoId      = new SqlParameter("@VehiculoId",      vehiculoId);
+            var pEmpleadoId      = new SqlParameter("@EmpleadoId",      empleadoId);
+            var pTipo            = new SqlParameter("@Tipo",            tipo);
+            var pDescripcion     = new SqlParameter("@Descripcion",     descripcion);
+            var pPrioridad       = new SqlParameter("@Prioridad",       prioridad);
+            var pFechaProgramada = new SqlParameter("@FechaProgramada", fechaProgramada.ToDateTime(TimeOnly.MinValue));
+
+            var pIdMantenimiento = new SqlParameter("@IdMantenimiento", System.Data.SqlDbType.Int)
+            {
+                Direction = System.Data.ParameterDirection.Output
+            };
+            var pExito = new SqlParameter("@Exito", System.Data.SqlDbType.Bit)
+            {
+                Direction = System.Data.ParameterDirection.Output
+            };
+            var pMensaje = new SqlParameter("@Mensaje", System.Data.SqlDbType.NVarChar, 300)
+            {
+                Direction = System.Data.ParameterDirection.Output
+            };
+
+            await _context.Database.ExecuteSqlRawAsync(
+                "EXEC SP_CrearOrdenMantenimiento " +
+                "@VehiculoId, @EmpleadoId, @Tipo, @Descripcion, @Prioridad, @FechaProgramada, " +
+                "@IdMantenimiento OUTPUT, @Exito OUTPUT, @Mensaje OUTPUT",
+                pVehiculoId, pEmpleadoId, pTipo, pDescripcion,
+                pPrioridad, pFechaProgramada,
+                pIdMantenimiento, pExito, pMensaje);
+
+            var exito           = (bool)pExito.Value;
+            var mensaje         = pMensaje.Value?.ToString() ?? string.Empty;
+            var idMantenimiento = exito ? (int)pIdMantenimiento.Value : 0;
+
+            return (exito, mensaje, idMantenimiento);
         }
     }
 }
