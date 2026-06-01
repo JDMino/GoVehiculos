@@ -64,6 +64,19 @@ namespace GoVehiculos.API.Controllers
             return Ok(new MultaValoresDTO());
         }
 
+        /// <summary>
+        /// GET /api/multas/usuario/{usuarioId}
+        /// Devuelve las multas cuya incidencia pertenece al usuario indicado.
+        /// Usado por la page "Mis Multas" de clientes y socios.
+        /// Admite filtro opcional por estado: ?estado=pendiente | pagada | cancelada
+        /// </summary>
+        [HttpGet("usuario/{usuarioId}")]
+        public async Task<IActionResult> GetByUsuario(int usuarioId, [FromQuery] string? estado)
+        {
+            var resultado = await _service.GetByUsuarioAsync(usuarioId, estado);
+            return Ok(resultado);
+        }
+
         // ================================================================
         // CREACIÓN COMPLETA
         // ================================================================

@@ -3,6 +3,7 @@ using GoVehiculos.API.Models;
 using GoVehiculos.API.Observers;
 using GoVehiculos.API.Repositories;
 
+
 namespace GoVehiculos.API.Services
 {
     /// <summary>
@@ -17,69 +18,79 @@ namespace GoVehiculos.API.Services
     /// </summary>
     public class MultaService
     {
-        private readonly IMultaRepository        _multaRepo;
+        private readonly IMultaRepository _multaRepo;
         private readonly IPenalizacionRepository _penalizacionRepo;
-        private readonly IVehiculoRepository     _vehiculoRepo;
-        private readonly IUsuarioRepository      _usuarioRepo;
-        private readonly IncidenciaService       _incidenciaService;
-        private readonly PenalizacionService     _penalizacionService;
+        private readonly IVehiculoRepository _vehiculoRepo;
+        private readonly IUsuarioRepository _usuarioRepo;
+        private readonly IncidenciaService _incidenciaService;
+        private readonly PenalizacionService _penalizacionService;
+
 
         private readonly List<IMultaObserver> _observadores;
 
+
         public MultaService(
-            IMultaRepository        multaRepo,
+            IMultaRepository multaRepo,
             IPenalizacionRepository penalizacionRepo,
-            IVehiculoRepository     vehiculoRepo,
-            IUsuarioRepository      usuarioRepo,
-            IncidenciaService       incidenciaService,
-            PenalizacionService     penalizacionService,
+            IVehiculoRepository vehiculoRepo,
+            IUsuarioRepository usuarioRepo,
+            IncidenciaService incidenciaService,
+            PenalizacionService penalizacionService,
             IEnumerable<IMultaObserver> observadores)
         {
-            _multaRepo           = multaRepo;
-            _penalizacionRepo    = penalizacionRepo;
-            _vehiculoRepo        = vehiculoRepo;
-            _usuarioRepo         = usuarioRepo;
-            _incidenciaService   = incidenciaService;
+            _multaRepo = multaRepo;
+            _penalizacionRepo = penalizacionRepo;
+            _vehiculoRepo = vehiculoRepo;
+            _usuarioRepo = usuarioRepo;
+            _incidenciaService = incidenciaService;
             _penalizacionService = penalizacionService;
-            _observadores        = observadores.ToList();
+            _observadores = observadores.ToList();
         }
 
+
         // ================================================================
-        // PATRÓN OBSERVADOR — Métodos del Sujeto (sin cambios)
+        // PATRÓN OBSERVADOR — Métodos del Sujeto
         // ================================================================
+
 
         public void Registrar(IMultaObserver observador)
             => _observadores.Add(observador);
 
+
         public void Eliminar(IMultaObserver observador)
             => _observadores.Remove(observador);
+
 
         private async Task NotificarAsync(
             string tipoIncidencia,
             string tipoPenalizacion,
-            int    vehiculoId,
-            int    usuarioId)
+            int vehiculoId,
+            int usuarioId)
         {
             foreach (var observador in _observadores)
                 await observador.ActualizarAsync(tipoIncidencia, tipoPenalizacion, vehiculoId, usuarioId);
         }
 
+
         // ================================================================
-        // CONSULTAS (sin cambios)
+        // CONSULTAS 
         // ================================================================
 
+
         public async Task<IEnumerable<MultaResponseDTO>> GetAllAsync(
-            string? estado         = null,
+            string? estado = null,
             string? tipoIncidencia = null,
-            string? nivelGravedad  = null)
+            string? nivelGravedad = null)
         {
             var lista = await _multaRepo.GetAllAsync(estado, tipoIncidencia, nivelGravedad);
 
-            var multaIds      = lista.Select(m => m.IdMulta).ToList();
-            var pens          = await _penalizacionRepo.GetByMultaIdsAsync(multaIds);
+
+            var multaIds = lista.Select(m => m.IdMulta).ToList();
+            var pens = await _penalizacionRepo.GetByMultaIdsAsync(multaIds);
             var penPorMultaId = pens
                 .Where(p => p.MultaId.HasValue)
                 .ToDictionary(p => p.MultaId!.Value);
+
 
             return lista.Select(m =>
             {
@@ -88,57 +99,89 @@ namespace GoVehiculos.API.Services
             });
         }
 
+
         public async Task<MultaResponseDTO?> GetByIdAsync(int id)
         {
             var multa = await _multaRepo.GetByIdAsync(id);
             if (multa == null) return null;
 
+
             var pen = await _penalizacionRepo.GetByMultaIdAsync(id);
             return ToResponseDTO(multa, pen);
         }
 
+
+        public async Task<IEnumerable<MultaResponseDTO>> GetByUsuarioAsync(int usuarioId, string? estado = null)
+        {
+            var lista = await _multaRepo.GetByUsuarioIdAsync(usuarioId, estado);
+
+
+            var multaIds = lista.Select(m => m.IdMulta).ToList();
+            var pens = await _penalizacionRepo.GetByMultaIdsAsync(multaIds);
+            var penPorMultaId = pens
+                .Where(p => p.MultaId.HasValue)
+                .ToDictionary(p => p.MultaId!.Value);
+
+
+            return lista.Select(m =>
+            {
+                penPorMultaId.TryGetValue(m.IdMulta, out var pen);
+                return ToResponseDTO(m, pen);
+            });
+        }
+
+
         // ================================================================
-        // CREACIÓN COMPLETA — Observer intacto (sin cambios)
+        // CREACIÓN COMPLETA 
         // ================================================================
 
+
         public async Task<(bool exito, string mensaje, MultaResponseDTO? dto)> CrearMultaCompletaAsync(
-            IncidenciaCreateDTO   incidenciaDto,
-            MultaCreateDTO        multaDto,
+            IncidenciaCreateDTO incidenciaDto,
+            MultaCreateDTO multaDto,
             PenalizacionCreateDTO penalizacionDto)
         {
             var errorIncidencia = ValidarCamposIncidencia(incidenciaDto);
             if (errorIncidencia != null) return (false, errorIncidencia, null);
 
+
             var errorMulta = ValidarCamposMulta(multaDto);
             if (errorMulta != null) return (false, errorMulta, null);
 
+
             var errorPenalizacion = ValidarCamposPenalizacion(penalizacionDto);
             if (errorPenalizacion != null) return (false, errorPenalizacion, null);
+
 
             var vehiculo = await _vehiculoRepo.GetByIdSimpleAsync(incidenciaDto.VehiculoId);
             if (vehiculo == null)
                 return (false, "El vehículo indicado no existe.", null);
 
+
             var usuario = await _usuarioRepo.GetByIdSimpleAsync(incidenciaDto.UsuarioId);
             if (usuario == null)
                 return (false, "El usuario indicado no existe.", null);
 
+
             var incidencia = await _incidenciaService.CrearAsync(incidenciaDto);
+
 
             var multa = new Multa
             {
-                IncidenciaId  = incidencia.IdIncidencia,
-                Tipo          = multaDto.Tipo.Trim().ToLower(),
-                Monto         = multaDto.Monto,
-                Descripcion   = multaDto.Descripcion?.Trim(),
-                Estado        = "pendiente",
+                IncidenciaId = incidencia.IdIncidencia,
+                Tipo = multaDto.Tipo.Trim().ToLower(),
+                Monto = multaDto.Monto,
+                Descripcion = multaDto.Descripcion?.Trim(),
+                Estado = "pendiente",
                 FechaCreacion = DateTime.Now
             };
             await _multaRepo.AddAsync(multa);
             await _multaRepo.SaveChangesAsync();
 
+
             var (exitoPen, mensajePen, _) = await _penalizacionService.CrearAsync(penalizacionDto, multa.IdMulta);
             if (!exitoPen) return (false, mensajePen, null);
+
 
             await NotificarAsync(
                 incidenciaDto.Tipo.Trim().ToLower(),
@@ -146,36 +189,45 @@ namespace GoVehiculos.API.Services
                 incidenciaDto.VehiculoId,
                 incidenciaDto.UsuarioId);
 
+
             var resultado = await GetByIdAsync(multa.IdMulta);
             return (true, "Multa creada correctamente.", resultado);
         }
 
+
+        // ===============================================================
+        // ACTUALIZACIÓN 
         // ================================================================
-        // ACTUALIZACIÓN (sin cambios)
-        // ================================================================
+
 
         public async Task<(bool exito, string mensaje)> UpdateAsync(int id, MultaUpdateDTO dto)
         {
             var errorCampos = ValidarCamposUpdate(dto);
             if (errorCampos != null) return (false, errorCampos);
 
+
             var multa = await _multaRepo.GetByIdSimpleAsync(id);
             if (multa == null) return (false, "Multa no encontrada.");
+
 
             if (multa.Estado == "cancelada")
                 return (false, "Una multa cancelada no puede modificarse.");
 
+
             if (dto.Estado == "cancelada")
                 return (false, "Para cancelar una multa use el endpoint dedicado PATCH /cancelar.");
 
-            multa.Tipo        = dto.Tipo.Trim().ToLower();
-            multa.Monto       = dto.Monto;
+
+            multa.Tipo = dto.Tipo.Trim().ToLower();
+            multa.Monto = dto.Monto;
             multa.Descripcion = dto.Descripcion?.Trim();
-            multa.Estado      = dto.Estado.Trim().ToLower();
+            multa.Estado = dto.Estado.Trim().ToLower();
+
 
             await _multaRepo.SaveChangesAsync();
             return (true, "Multa actualizada correctamente.");
         }
+
 
         // ================================================================
         // CANCELACIÓN — con SP
@@ -195,14 +247,17 @@ namespace GoVehiculos.API.Services
         // En total: 1 llamada a la BD.
         // ================================================================
 
+
         public async Task<(bool exito, string mensaje)> CancelarAsync(int id, MultaCancelarDTO dto)
         {
             return await _multaRepo.CancelarConSPAsync(id, dto.MotivoCancelacion);
         }
 
+
         // ================================================================
         // Validaciones privadas (sin cambios)
         // ================================================================
+
 
         private static readonly string[] TiposIncidenciaValidos =
         [
@@ -210,20 +265,24 @@ namespace GoVehiculos.API.Services
             "comportamiento_indebido", "retraso_en_pago"
         ];
 
+
         private static readonly string[] NivelesGravedadValidos =
         [
             "baja", "media", "alta"
         ];
+
 
         private static readonly string[] TiposMultaValidos =
         [
             "economica", "administrativa", "mixta"
         ];
 
+
         private static readonly string[] EstadosMultaEditables =
         [
             "pendiente", "pagada"
         ];
+
 
         private static readonly string[] TiposPenalizacionValidos =
         [
@@ -231,9 +290,10 @@ namespace GoVehiculos.API.Services
             "inhabilitacion_vehiculo", "advertencia"
         ];
 
+
         private static string? ValidarCamposIncidencia(IncidenciaCreateDTO dto)
         {
-            if (dto.UsuarioId  <= 0) return "El usuario es obligatorio.";
+            if (dto.UsuarioId <= 0) return "El usuario es obligatorio.";
             if (dto.VehiculoId <= 0) return "El vehículo es obligatorio.";
             if (string.IsNullOrWhiteSpace(dto.Tipo))
                 return "El tipo de incidencia es obligatorio.";
@@ -248,6 +308,7 @@ namespace GoVehiculos.API.Services
             return null;
         }
 
+
         private static string? ValidarCamposMulta(MultaCreateDTO dto)
         {
             if (string.IsNullOrWhiteSpace(dto.Tipo))
@@ -259,6 +320,7 @@ namespace GoVehiculos.API.Services
             return null;
         }
 
+
         private static string? ValidarCamposPenalizacion(PenalizacionCreateDTO dto)
         {
             if (string.IsNullOrWhiteSpace(dto.Tipo))
@@ -269,6 +331,7 @@ namespace GoVehiculos.API.Services
                 return "El motivo de la penalización es obligatorio.";
             return null;
         }
+
 
         private static string? ValidarCamposUpdate(MultaUpdateDTO dto)
         {
@@ -285,41 +348,47 @@ namespace GoVehiculos.API.Services
             return null;
         }
 
+
         // ================================================================
         // Mapeo privado (sin cambios)
         // ================================================================
 
+
         private static MultaResponseDTO ToResponseDTO(Multa m, Penalizacion? pen = null) => new()
         {
-            IdMulta       = m.IdMulta,
-            Tipo          = m.Tipo,
-            Monto         = m.Monto,
-            Descripcion   = m.Descripcion,
-            Estado        = m.Estado,
+            IdMulta = m.IdMulta,
+            Tipo = m.Tipo,
+            Monto = m.Monto,
+            Descripcion = m.Descripcion,
+            Estado = m.Estado,
             FechaCreacion = m.FechaCreacion,
 
-            IncidenciaId            = m.IncidenciaId,
-            IncidenciaTipo          = m.Incidencia?.Tipo              ?? string.Empty,
-            IncidenciaNivelGravedad = m.Incidencia?.NivelGravedad     ?? string.Empty,
-            IncidenciaDescripcion   = m.Incidencia?.Descripcion       ?? string.Empty,
-            IncidenciaFechaReporte  = m.Incidencia?.FechaReporte      ?? DateTime.MinValue,
 
-            UsuarioId             = m.Incidencia?.UsuarioId ?? 0,
+            IncidenciaId = m.IncidenciaId,
+            IncidenciaTipo = m.Incidencia?.Tipo ?? string.Empty,
+            IncidenciaNivelGravedad = m.Incidencia?.NivelGravedad ?? string.Empty,
+            IncidenciaDescripcion = m.Incidencia?.Descripcion ?? string.Empty,
+            IncidenciaFechaReporte = m.Incidencia?.FechaReporte ?? DateTime.MinValue,
+
+
+            UsuarioId = m.Incidencia?.UsuarioId ?? 0,
             UsuarioNombreCompleto = m.Incidencia?.Usuario != null
                                         ? $"{m.Incidencia.Usuario.Nombre} {m.Incidencia.Usuario.Apellido}"
                                         : string.Empty,
 
-            VehiculoId      = m.Incidencia?.VehiculoId                      ?? 0,
-            VehiculoPatente = m.Incidencia?.Vehiculo?.Patente               ?? string.Empty,
-            VehiculoMarca   = m.Incidencia?.Vehiculo?.Modelo?.Marca?.Nombre  ?? string.Empty,
-            VehiculoModelo  = m.Incidencia?.Vehiculo?.Modelo?.Nombre         ?? string.Empty,
 
-            IdPenalizacion          = pen?.IdPenalizacion,
-            PenalizacionTipo        = pen?.Tipo,
-            PenalizacionMotivo      = pen?.Motivo,
-            PenalizacionEstado      = pen?.Estado,
+            VehiculoId = m.Incidencia?.VehiculoId ?? 0,
+            VehiculoPatente = m.Incidencia?.Vehiculo?.Patente ?? string.Empty,
+            VehiculoMarca = m.Incidencia?.Vehiculo?.Modelo?.Marca?.Nombre ?? string.Empty,
+            VehiculoModelo = m.Incidencia?.Vehiculo?.Modelo?.Nombre ?? string.Empty,
+
+
+            IdPenalizacion = pen?.IdPenalizacion,
+            PenalizacionTipo = pen?.Tipo,
+            PenalizacionMotivo = pen?.Motivo,
+            PenalizacionEstado = pen?.Estado,
             PenalizacionFechaInicio = pen?.FechaInicio,
-            PenalizacionFechaFin    = pen?.FechaFin,
+            PenalizacionFechaFin = pen?.FechaFin,
         };
     }
 }

@@ -33,7 +33,8 @@ import MantenimientosHistorial from "./pages/Mantenimientos/MantenimientosHistor
 import MultasList from "./pages/Multas/MultasList";
 import MultasForm from "./pages/Multas/MultasForm";
 import MultasEdit from "./pages/Multas/MultasEdit";
-
+// Agregar al bloque de imports de Multas:
+import MultasRecibidas from "./pages/Multas/MultasRecibidas";
 const ROLES = {
   CLIENTE: 1,
   SOCIO: 2,
@@ -89,12 +90,10 @@ export default function App() {
         <Routes>
           {/* Redirección raíz */}
           <Route path="/" element={<Navigate to="/home" replace />} />
-
           {/* Rutas públicas */}
           <Route path="/home" element={<Home />} />
           <Route path="/login" element={<Login />} />
           <Route path="/register" element={<Register />} />
-
           {/* Dashboard — solo administrador */}
           <Route
             path="/dashboard"
@@ -104,7 +103,6 @@ export default function App() {
               </ProtectedRoute>
             }
           />
-
           {/* ── VEHÍCULOS ──────────────────────────────────────────────── */}
           <Route
             path="/vehiculos"
@@ -137,7 +135,6 @@ export default function App() {
               </ProtectedRoute>
             }
           />
-
           {/* ── USUARIOS ───────────────────────────────────────────────── */}
           <Route
             path="/usuarios"
@@ -163,9 +160,7 @@ export default function App() {
               </ProtectedRoute>
             }
           />
-
           {/* ── MANTENIMIENTOS ─────────────────────────────────────────── */}
-
           {/* Ruta principal — selector por rol */}
           <Route
             path="/mantenimientos"
@@ -177,7 +172,6 @@ export default function App() {
               </ProtectedRoute>
             }
           />
-
           {/* Historial — solo administrador */}
           <Route
             path="/mantenimientos/historial"
@@ -187,7 +181,6 @@ export default function App() {
               </ProtectedRoute>
             }
           />
-
           {/* Crear orden — solo administrador */}
           <Route
             path="/mantenimientos/nuevo/:vehiculoId"
@@ -197,9 +190,7 @@ export default function App() {
               </ProtectedRoute>
             }
           />
-
           {/* ── MULTAS ─────────────────────────────────────────────────── */}
-
           {/* Listado — solo administrador */}
           <Route
             path="/multas"
@@ -209,7 +200,6 @@ export default function App() {
               </ProtectedRoute>
             }
           />
-
           {/* Crear multa — solo administrador */}
           <Route
             path="/multas/nueva"
@@ -219,7 +209,6 @@ export default function App() {
               </ProtectedRoute>
             }
           />
-
           {/* Editar multa — solo administrador */}
           <Route
             path="/multas/:id/editar"
@@ -229,7 +218,15 @@ export default function App() {
               </ProtectedRoute>
             }
           />
-
+          {/* Multas recibidas — cliente y socio */}
+          <Route
+            path="/mis-multas"
+            element={
+              <ProtectedRoute allowedRoles={[ROLES.CLIENTE, ROLES.SOCIO]}>
+                <MultasRecibidas />
+              </ProtectedRoute>
+            }
+          />
           {/* Fallback */}
           <Route path="*" element={<Navigate to="/home" replace />} />
         </Routes>

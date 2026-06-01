@@ -72,6 +72,14 @@ export default function Navbar({ user, onLogout, demoRole }) {
     () => userRolId === ROLES.ADMINISTRADOR,
     [userRolId],
   );
+  // Después de canSeeMultas:
+  const canSeeMultasRecibidas = useMemo(
+    () => [ROLES.CLIENTE, ROLES.SOCIO].includes(userRolId),
+    [userRolId],
+  );
+
+  // Contador de multas pendientes para cliente/socio
+  const [contadorMultasRecibidas, setContadorMultasRecibidas] = useState(0);
 
   // ── Resolver empleadoId igual que en MantenimientosEmpleado ─────────────
   const empleadoId = useMemo(() => {
@@ -117,16 +125,34 @@ export default function Navbar({ user, onLogout, demoRole }) {
     }
   }, [isAuthenticated, userRolId]);
 
+  const fetchContadorMultasRecibidas = useCallback(async () => {
+    if (!isAuthenticated || !canSeeMultasRecibidas || !empleadoId) return;
+    try {
+      const res = await api.get(
+        `/multas/usuario/${empleadoId}?estado=pendiente`,
+      );
+      setContadorMultasRecibidas(Array.isArray(res.data) ? res.data.length : 0);
+    } catch {
+      // silencioso
+    }
+  }, [isAuthenticated, canSeeMultasRecibidas, empleadoId]);
+
   useEffect(() => {
     fetchContadorMant();
     fetchContadorMultas();
+    fetchContadorMultasRecibidas(); // ← agregar
     const intervaloMant = setInterval(fetchContadorMant, 5_000);
     const intervaloMultas = setInterval(fetchContadorMultas, 30_000);
+    const intervaloRecibidas = setInterval(
+      fetchContadorMultasRecibidas,
+      30_000,
+    ); // ← agregar
     return () => {
       clearInterval(intervaloMant);
       clearInterval(intervaloMultas);
+      clearInterval(intervaloRecibidas); // ← agregar
     };
-  }, [fetchContadorMant, fetchContadorMultas]);
+  }, [fetchContadorMant, fetchContadorMultas, fetchContadorMultasRecibidas]);
 
   // ── Scroll listener ───────────────────────────────────────────────────────
   useEffect(() => {
@@ -155,7 +181,7 @@ export default function Navbar({ user, onLogout, demoRole }) {
         name: "Vehiculos",
         path: "/vehiculos",
         icon: Car,
-        allowedRoles: [ROLES.SOCIO, ROLES.ADMINISTRADOR],
+        allowedRoles: [ROLES.ADMINISTRADOR],
       },
       {
         name: "Usuarios",
@@ -262,6 +288,40 @@ export default function Navbar({ user, onLogout, demoRole }) {
     );
   };
 
+  const MultasRecibidasLink = ({ mobile = false }) => {
+    const active = isActive("/mis-multas");
+    const base = mobile
+      ? `flex items-center px-4 py-3 rounded-xl text-base font-medium transition-all duration-200 ${
+          active
+            ? "bg-gradient-to-r from-blue-600 to-blue-500 text-white shadow-lg shadow-blue-500/20"
+            : "text-slate-300 hover:bg-white/5 hover:text-white"
+        }`
+      : `relative flex items-center px-4 py-2 rounded-lg text-sm font-medium transition-all duration-200 ${
+          active
+            ? "text-white"
+            : "text-slate-400 hover:text-white hover:bg-white/5"
+        }`;
+
+    return (
+      <Link
+        to="/mis-multas"
+        onClick={mobile ? () => setIsOpen(false) : undefined}
+        className={base}
+        aria-current={active ? "page" : undefined}
+      >
+        {!mobile && active && (
+          <span className="absolute inset-0 bg-gradient-to-r from-blue-600/80 to-blue-500/80 rounded-lg" />
+        )}
+        <span className={`${mobile ? "" : "relative"} flex items-center`}>
+          <Scale className={`${mobile ? "h-5 w-5 mr-3" : "h-4 w-4 mr-2"}`} />
+          Mis Multas
+          <ContadorBadge count={contadorMultasRecibidas} />
+        </span>
+        {mobile && active && <ChevronRight className="h-4 w-4 ml-auto" />}
+      </Link>
+    );
+  };
+
   // ── Render ────────────────────────────────────────────────────────────────
   return (
     <>
@@ -336,6 +396,11 @@ export default function Navbar({ user, onLogout, demoRole }) {
                     {canSeeMultas && <MultasLink />}
                   </div>
                 )}
+
+                {/* Mis Multas — fuera del bloque condicional, visible siempre para cliente/socio */}
+                <div className="hidden md:flex md:items-center">
+                  {canSeeMultasRecibidas && <MultasRecibidasLink />}
+                </div>
 
                 {/* Info usuario + logout desktop */}
                 <div className="hidden md:flex items-center gap-3">
@@ -465,6 +530,8 @@ export default function Navbar({ user, onLogout, demoRole }) {
               {canSeeMultas && (showFullNavbar || !isHomePage) && (
                 <MultasLink mobile />
               )}
+
+              {canSeeMultasRecibidas && <MultasRecibidasLink mobile />}
 
               <div className="my-4 border-t border-slate-800" />
 

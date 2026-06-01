@@ -3,6 +3,7 @@ using GoVehiculos.API.Models;
 using Microsoft.Data.SqlClient;
 using Microsoft.EntityFrameworkCore;
 
+
 namespace GoVehiculos.API.Repositories
 {
     public interface IMultaRepository
@@ -11,10 +12,13 @@ namespace GoVehiculos.API.Repositories
         Task<List<Multa>> GetAllAsync(string? estado = null, string? tipoIncidencia = null, string? nivelGravedad = null);
         Task<Multa?> GetByIdAsync(int id);
         Task<Multa?> GetByIdSimpleAsync(int id);
+        Task<List<Multa>> GetByUsuarioIdAsync(int usuarioId, string? estado = null);
+
 
         // Persistencia general
         Task AddAsync(Multa multa);
         Task SaveChangesAsync();
+
 
         // ── NUEVO — Procedimiento almacenado ──────────────────────────
         // ANTES: MultaService.CancelarAsync() usaba GetByIdSimpleAsync
@@ -32,27 +36,31 @@ namespace GoVehiculos.API.Repositories
         // En total: 1 llamada a la BD.
         // ─────────────────────────────────────────────────────────────
         Task<(bool exito, string mensaje)> CancelarConSPAsync(
-            int    idMulta,
+            int idMulta,
             string motivoCancelacion);
     }
+
 
     public class MultaRepository : IMultaRepository
     {
         private readonly ApplicationDbContext _context;
+
 
         public MultaRepository(ApplicationDbContext context)
         {
             _context = context;
         }
 
+
         // ================================================================
         // CONSULTAS
         // ================================================================
 
+
         public async Task<List<Multa>> GetAllAsync(
-            string? estado         = null,
+            string? estado = null,
             string? tipoIncidencia = null,
-            string? nivelGravedad  = null)
+            string? nivelGravedad = null)
         {
             var query = _context.Multas
                 .Include(m => m.Incidencia)
@@ -63,19 +71,24 @@ namespace GoVehiculos.API.Repositories
                             .ThenInclude(mo => mo.Marca)
                 .AsQueryable();
 
+
             if (!string.IsNullOrWhiteSpace(estado))
                 query = query.Where(m => m.Estado == estado);
+
 
             if (!string.IsNullOrWhiteSpace(tipoIncidencia))
                 query = query.Where(m => m.Incidencia!.Tipo == tipoIncidencia);
 
+
             if (!string.IsNullOrWhiteSpace(nivelGravedad))
                 query = query.Where(m => m.Incidencia!.NivelGravedad == nivelGravedad);
+
 
             return await query
                 .OrderByDescending(m => m.IdMulta)
                 .ToListAsync();
         }
+
 
         public async Task<Multa?> GetByIdAsync(int id)
         {
@@ -89,38 +102,68 @@ namespace GoVehiculos.API.Repositories
                 .FirstOrDefaultAsync(m => m.IdMulta == id);
         }
 
+
         public async Task<Multa?> GetByIdSimpleAsync(int id)
         {
             return await _context.Multas.FindAsync(id);
         }
 
+
+        public async Task<List<Multa>> GetByUsuarioIdAsync(int usuarioId, string? estado = null)
+        {
+            var query = _context.Multas
+                .Include(m => m.Incidencia)
+                    .ThenInclude(i => i.Usuario)
+                .Include(m => m.Incidencia)
+                    .ThenInclude(i => i.Vehiculo)
+                        .ThenInclude(v => v.Modelo)
+                            .ThenInclude(mo => mo.Marca)
+                .Where(m => m.Incidencia != null && m.Incidencia.UsuarioId == usuarioId)
+                .AsQueryable();
+
+
+            if (!string.IsNullOrWhiteSpace(estado))
+                query = query.Where(m => m.Estado == estado);
+
+
+            return await query
+                .OrderByDescending(m => m.IdMulta)
+                .ToListAsync();
+        }
+
+
         // ================================================================
         // PERSISTENCIA GENERAL
         // ================================================================
+
 
         public async Task AddAsync(Multa multa)
         {
             await _context.Multas.AddAsync(multa);
         }
 
+
         public async Task SaveChangesAsync()
         {
             await _context.SaveChangesAsync();
         }
 
+
         // ================================================================
         // PROCEDIMIENTO ALMACENADO — Cancelar multa
         // ================================================================
 
+
         public async Task<(bool exito, string mensaje)> CancelarConSPAsync(
-            int    idMulta,
+            int idMulta,
             string motivoCancelacion)
         {
             var pIdMulta = new SqlParameter("@IdMulta", idMulta);
-            var pMotivo  = new SqlParameter("@MotivoCancelacion",
+            var pMotivo = new SqlParameter("@MotivoCancelacion",
                 string.IsNullOrWhiteSpace(motivoCancelacion)
                     ? (object)DBNull.Value
                     : motivoCancelacion.Trim());
+
 
             var pExito = new SqlParameter("@Exito", System.Data.SqlDbType.Bit)
             {
@@ -131,12 +174,15 @@ namespace GoVehiculos.API.Repositories
                 Direction = System.Data.ParameterDirection.Output
             };
 
+
             await _context.Database.ExecuteSqlRawAsync(
                 "EXEC SP_CancelarMulta @IdMulta, @MotivoCancelacion, @Exito OUTPUT, @Mensaje OUTPUT",
                 pIdMulta, pMotivo, pExito, pMensaje);
 
-            var exito   = (bool)pExito.Value;
+
+            var exito = (bool)pExito.Value;
             var mensaje = pMensaje.Value?.ToString() ?? string.Empty;
+
 
             return (exito, mensaje);
         }
