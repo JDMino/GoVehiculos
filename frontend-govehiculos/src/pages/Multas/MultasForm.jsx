@@ -207,7 +207,7 @@ export default function MultasForm() {
           api.get("/vehiculos"),
           api.get("/multas/valores"),
         ]);
-        setUsuarios(uRes.data.filter((u) => u.activo));
+        setUsuarios(uRes.data.filter((u) => u.activo && [1, 2].includes(u.rolId)));
         setVehiculos(vRes.data.filter((v) => v.activo));
         setValores(valRes.data);
       } catch {

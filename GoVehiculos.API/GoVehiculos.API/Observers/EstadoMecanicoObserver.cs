@@ -1,4 +1,5 @@
 ﻿using GoVehiculos.API.Repositories;
+using GoVehiculos.API.Services;
 
 namespace GoVehiculos.API.Observers
 {
@@ -9,9 +10,11 @@ namespace GoVehiculos.API.Observers
     /// "daño_fisico". En ese caso, busca el vehículo involucrado en la BD
     /// y actualiza su EstadoMecanico a "malo".
     ///
+    /// Respeta la estructura canónica del patrón Observer: recibe al sujeto
+    /// como parámetro en ActualizarAsync, hace cast a MultaService para
+    /// consultar su estado, y decide de forma autónoma si debe actuar.
+    ///
     /// Si el tipo de incidencia es cualquier otro, no hace nada.
-    /// Esta decisión la toma el propio observador, sin que el Sujeto
-    /// (MultaService) deba conocerla ni condicionarla.
     /// </summary>
     public class EstadoMecanicoObserver : IMultaObserver
     {
@@ -22,16 +25,16 @@ namespace GoVehiculos.API.Observers
             _vehiculoRepo = vehiculoRepo;
         }
 
-        public async Task ActualizarAsync(
-            string tipoIncidencia,
-            string tipoPenalizacion,
-            int vehiculoId,
-            int usuarioId)
+        public async Task ActualizarAsync(MultaAbs multaAbs)
         {
-            // Este observador solo actúa ante daños físicos
-            if (tipoIncidencia != "daño_fisico") return;
+            // Cast al sujeto concreto para consultar su estado
+            if (multaAbs is not MultaService multaService) return;
 
-            var vehiculo = await _vehiculoRepo.GetByIdSimpleAsync(vehiculoId);
+            // Este observador solo actúa ante daños físicos
+            if (multaService.TipoIncidencia != "daño_fisico") return;
+
+            var vehiculo = await _vehiculoRepo
+                .GetByIdSimpleAsync(multaService.VehiculoId);
             if (vehiculo == null) return;
 
             vehiculo.EstadoMecanico = "malo";

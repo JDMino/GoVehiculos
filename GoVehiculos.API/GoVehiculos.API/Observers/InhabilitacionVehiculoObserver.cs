@@ -1,4 +1,5 @@
 ﻿using GoVehiculos.API.Repositories;
+using GoVehiculos.API.Services;
 
 namespace GoVehiculos.API.Observers
 {
@@ -8,6 +9,10 @@ namespace GoVehiculos.API.Observers
     /// Reacciona al evento "multa creada" cuando la penalización es de tipo
     /// "inhabilitacion_vehiculo". En ese caso, busca el vehículo involucrado
     /// en la BD y establece su Estado = "fuera_de_servicio".
+    ///
+    /// Respeta la estructura canónica del patrón Observer: recibe al sujeto
+    /// como parámetro en ActualizarAsync, hace cast a MultaService para
+    /// consultar su estado, y decide de forma autónoma si debe actuar.
     ///
     /// Si el tipo de penalización es cualquier otro, no hace nada.
     ///
@@ -26,16 +31,16 @@ namespace GoVehiculos.API.Observers
             _vehiculoRepo = vehiculoRepo;
         }
 
-        public async Task ActualizarAsync(
-            string tipoIncidencia,
-            string tipoPenalizacion,
-            int vehiculoId,
-            int usuarioId)
+        public async Task ActualizarAsync(MultaAbs multaAbs)
         {
-            // Este observador solo actúa ante penalizaciones de inhabilitación
-            if (tipoPenalizacion != "inhabilitacion_vehiculo") return;
+            // Cast al sujeto concreto para consultar su estado
+            if (multaAbs is not MultaService multaService) return;
 
-            var vehiculo = await _vehiculoRepo.GetByIdSimpleAsync(vehiculoId);
+            // Este observador solo actúa ante penalizaciones de inhabilitación
+            if (multaService.TipoPenalizacion != "inhabilitacion_vehiculo") return;
+
+            var vehiculo = await _vehiculoRepo
+                .GetByIdSimpleAsync(multaService.VehiculoId);
             if (vehiculo == null) return;
 
             vehiculo.Estado = "fuera_de_servicio";

@@ -4,9 +4,9 @@
     /// PATRÓN OBSERVADOR — Interfaz Observador.
     ///
     /// Define el contrato que deben cumplir todos los observadores
-    /// del evento "multa creada". Cada observador concreto encapsula
-    /// un único efecto secundario y decide de forma autónoma si debe
-    /// actuar según los datos del evento recibido.
+    /// del evento "multa creada". Cada observador concreto recibe
+    /// al sujeto como parámetro y consulta su estado directamente,
+    /// respetando la estructura canónica del patrón Observer.
     ///
     /// El Sujeto (MultaService) no conoce los tipos concretos de sus
     /// observadores, solo esta interfaz. Eso permite agregar nuevos
@@ -16,24 +16,15 @@
     public interface IMultaObserver
     {
         /// <summary>
-        /// Notifica al observador que se creó una multa completa.
-        /// Cada implementación evalúa si debe actuar según los tipos recibidos
-        /// y aplica su efecto secundario de forma independiente.
+        /// Notifica al observador que se creó una multa.
+        /// El observador recibe al sujeto y consulta su estado
+        /// para decidir de forma autónoma si debe actuar.
         /// </summary>
-        /// <param name="tipoIncidencia">
-        ///   Tipo de la incidencia creada. Algunos observadores reaccionan
-        ///   solo ante ciertos tipos (ej: "daño_fisico").
+        /// <param name="multaAbs">
+        ///   El sujeto que disparó el evento. Los observadores
+        ///   concretos hacen cast a MultaService para acceder
+        ///   a TipoIncidencia, TipoPenalizacion, VehiculoId y UsuarioId.
         /// </param>
-        /// <param name="tipoPenalizacion">
-        ///   Tipo de la penalización creada. Algunos observadores reaccionan
-        ///   solo ante ciertos tipos (ej: "bloqueo_cuenta").
-        /// </param>
-        /// <param name="vehiculoId">ID del vehículo involucrado en la incidencia.</param>
-        /// <param name="usuarioId">ID del usuario involucrado en la incidencia.</param>
-        Task ActualizarAsync(
-            string tipoIncidencia,
-            string tipoPenalizacion,
-            int vehiculoId,
-            int usuarioId);
+        Task ActualizarAsync(MultaAbs multaAbs);
     }
 }
