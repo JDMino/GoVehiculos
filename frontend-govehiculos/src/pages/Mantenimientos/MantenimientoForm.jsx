@@ -38,7 +38,9 @@ export default function MantenimientoForm() {
   const [loadingData, setLoadingData]   = useState(true);
   const [vehiculo, setVehiculo]         = useState(null);
   const [empleados, setEmpleados]       = useState([]);
+  
   const [errorNegocio, setErrorNegocio] = useState(null);
+  const [mensajeExito, setMensajeExito] = useState(null);
 
   const [form, setForm] = useState({
     vehiculoId:      parseInt(vehiculoId),
@@ -71,8 +73,8 @@ export default function MantenimientoForm() {
 
   const handleChange = (e) => {
     const { name, value } = e.target;
-    // Limpiar el error al modificar cualquier campo
     setErrorNegocio(null);
+    setMensajeExito(null);
     setForm((prev) => ({ ...prev, [name]: value }));
   };
 
@@ -80,12 +82,10 @@ export default function MantenimientoForm() {
     e.preventDefault();
     setLoading(true);
     setErrorNegocio(null);
+    setMensajeExito(null);
 
-    // Sanitización del payload antes de enviarlo:
-    // parseInt("") devuelve NaN, lo que causa un error de serialización en el backend
-    // antes de llegar al service. Se envía 0 para que ValidarCamposCreate lo rechace
-    // con un mensaje legible ("Debe asignar un empleado...").
     const empleadoIdParsed = parseInt(form.empleadoId);
+    
     const payload = {
       vehiculoId:      parseInt(vehiculoId),
       empleadoId:      isNaN(empleadoIdParsed) ? 0 : empleadoIdParsed,
@@ -93,23 +93,78 @@ export default function MantenimientoForm() {
       descripcion:     form.descripcion,
       estado:          "pendiente",
       prioridad:       form.prioridad,
-      fechaProgramada: form.fechaProgramada || null,
     };
 
+    if (form.fechaProgramada) {
+      payload.fechaProgramada = form.fechaProgramada;
+    }
+
     try {
-      await api.post("/mantenimientos", payload);
-      navigate("/mantenimientos");
+      const res = await api.post("/mantenimientos", payload);
+      
+      // Muestra el mensaje de éxito enviado desde el controlador (ej. "Orden creada correctamente")
+      setMensajeExito(res.data?.mensaje || "Orden de mantenimiento generada correctamente.");
+      
+      setTimeout(() => {
+        navigate("/mantenimientos");
+      }, 2500);
+
     } catch (err) {
-      if (err.response?.status === 422) {
-        // Mensaje legible devuelto por el service (ValidarCamposCreate o reglas de negocio)
-        setErrorNegocio(err.response.data?.mensaje || "No se pudo generar la orden.");
-      } else if (err.response?.status === 400) {
-        // Errores de ModelState — no deberían llegar si el payload está bien sanitizado,
-        // pero se capturan como fallback con un mensaje genérico entendible.
-        setErrorNegocio("Hay campos incompletos o inválidos. Revisá el formulario e intentá de nuevo.");
-      } else {
-        setErrorNegocio("Error inesperado al crear la orden. Intentá de nuevo.");
+      let mensajeFinal = "Error inesperado al crear la orden. Intentá de nuevo.";
+
+      // 1. Captura de mensajes legibles de las reglas de negocio del Service / SP (status 422 o similares)
+      if (err.response?.data?.mensaje) {
+        mensajeFinal = err.response.data.mensaje;
+
+        // CORRECCIÓN FECHA: Si el usuario no ingresó nada y el backend responde con "no puede ser anterior a hoy"
+        // debido al valor por defecto (0001-01-01) del struct DateOnly, lo convertimos en un mensaje claro.
+        if (!form.fechaProgramada && mensajeFinal.includes("anterior a hoy")) {
+          mensajeFinal = "La fecha programada es obligatoria.";
+        }
+      } 
+      // 2. Captura de errores automáticos de validación de modelos de ASP.NET Core (status 400 - ModelState)
+      else if (err.response?.status === 400 && err.response?.data?.errors) {
+        const errors = err.response.data.errors;
+        
+        // Buscamos la primera propiedad que falló (ej: "Descripcion", "Tipo")
+        const propKey = Object.keys(errors).find(k => k.toLowerCase() !== "dto" && k !== "");
+        
+        if (propKey) {
+          const rawError = errors[propKey][0];
+          
+          // CORRECCIÓN DESCRIPCIÓN: Si el framework rechaza el campo requerido en inglés, lo traducimos al vuelo
+          if (rawError.toLowerCase().includes("required")) {
+            if (propKey.toLowerCase().includes("descripcion") || rawError.toLowerCase().includes("description")) {
+              mensajeFinal = "La descripción es obligatoria.";
+            } else if (propKey.toLowerCase().includes("tipo")) {
+              mensajeFinal = "El tipo de mantenimiento es obligatorio.";
+            } else if (propKey.toLowerCase().includes("fecha")) {
+              mensajeFinal = "La fecha programada es obligatoria.";
+            } else {
+              mensajeFinal = `El campo ${propKey} es obligatorio.`;
+            }
+          } else {
+            mensajeFinal = rawError;
+          }
+        } else if (errors["dto"]) {
+          mensajeFinal = "Verificá que todos los campos requeridos estén completos.";
+        }
+      } 
+      // 3. Captura de excepciones crudas de base de datos o caídas internas del servidor (status 500)
+      else if (err.response?.data) {
+        const errorContent = typeof err.response.data === 'string' 
+          ? err.response.data 
+          : JSON.stringify(err.response.data);
+
+        // CORRECCIÓN EMPLEADO: Interceptamos el conflicto de clave foránea de SQL Server cuando EmpleadoId es 0
+        if (errorContent.includes("FK_Mantenimiento_Usuario") || errorContent.includes("FOREIGN KEY constraint")) {
+          mensajeFinal = "El empleado asignado es obligatorio. Debe seleccionar un empleado válido.";
+        } else {
+          mensajeFinal = err.response.data?.mensaje || err.response.data?.exceptionMessage || "Error interno en el servidor.";
+        }
       }
+
+      setErrorNegocio(mensajeFinal);
     } finally {
       setLoading(false);
     }
@@ -135,6 +190,7 @@ export default function MantenimientoForm() {
           <Link
             to="/mantenimientos"
             className="inline-flex items-center gap-2 text-slate-300 hover:text-white text-sm font-medium mb-4 transition-colors"
+            style={{ pointerEvents: (loading || mensajeExito) ? 'none' : 'auto' }}
           >
             <ArrowLeft className="h-4 w-4" />
             Volver a mantenimientos
@@ -215,7 +271,8 @@ export default function MantenimientoForm() {
                     name="tipo"
                     value={form.tipo}
                     onChange={handleChange}
-                    className="w-full appearance-none px-4 py-3 bg-slate-50 border border-slate-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-slate-900 text-slate-900 font-medium cursor-pointer"
+                    disabled={loading || !!mensajeExito}
+                    className="w-full appearance-none px-4 py-3 bg-slate-50 border border-slate-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-slate-900 text-slate-900 font-medium cursor-pointer disabled:opacity-60"
                   >
                     {TIPOS_MANTENIMIENTO.map((t) => (
                       <option key={t.value} value={t.value}>{t.label}</option>
@@ -233,11 +290,16 @@ export default function MantenimientoForm() {
                     <button
                       key={p.value}
                       type="button"
-                      onClick={() => setForm((prev) => ({ ...prev, prioridad: p.value }))}
+                      disabled={loading || !!mensajeExito}
+                      onClick={() => {
+                        setErrorNegocio(null);
+                        setMensajeExito(null);
+                        setForm((prev) => ({ ...prev, prioridad: p.value }));
+                      }}
                       className={`py-2.5 px-4 rounded-xl border text-sm font-semibold transition-all ${
                         form.prioridad === p.value
                           ? p.color + " ring-2 ring-offset-1 ring-current"
-                          : "bg-slate-50 border-slate-200 text-slate-500 hover:bg-slate-100"
+                          : "bg-slate-50 border-slate-200 text-slate-500 hover:bg-slate-100 disabled:opacity-50"
                       }`}
                     >
                       {p.label}
@@ -255,8 +317,9 @@ export default function MantenimientoForm() {
                   name="descripcion"
                   value={form.descripcion}
                   onChange={handleChange}
+                  disabled={loading || !!mensajeExito}
                   rows={4}
-                  className="w-full px-4 py-3 bg-slate-50 border border-slate-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-slate-900 text-slate-900 placeholder:text-slate-400 resize-none transition-all"
+                  className="w-full px-4 py-3 bg-slate-50 border border-slate-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-slate-900 text-slate-900 placeholder:text-slate-400 resize-none transition-all disabled:opacity-60"
                   placeholder="Describí el trabajo de mantenimiento a realizar..."
                 />
               </div>
@@ -294,7 +357,8 @@ export default function MantenimientoForm() {
                     name="fechaProgramada"
                     value={form.fechaProgramada}
                     onChange={handleChange}
-                    className="w-full pl-10 pr-4 py-3 bg-slate-50 border border-slate-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-slate-900 text-slate-900 transition-all"
+                    disabled={loading || !!mensajeExito}
+                    className="w-full pl-10 pr-4 py-3 bg-slate-50 border border-slate-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-slate-900 text-slate-900 transition-all disabled:opacity-60"
                   />
                 </div>
               </div>
@@ -319,7 +383,8 @@ export default function MantenimientoForm() {
                     name="empleadoId"
                     value={form.empleadoId}
                     onChange={handleChange}
-                    className="w-full appearance-none px-4 py-3 bg-slate-50 border border-slate-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-slate-900 text-slate-900 cursor-pointer"
+                    disabled={loading || !!mensajeExito}
+                    className="w-full appearance-none px-4 py-3 bg-slate-50 border border-slate-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-slate-900 text-slate-900 cursor-pointer disabled:opacity-60"
                   >
                     <option value="">— Seleccioná un empleado —</option>
                     {empleados.map((e) => (
@@ -340,32 +405,50 @@ export default function MantenimientoForm() {
             </div>
           </div>
 
-          {/* Error + Actions — agrupados para que el error aparezca pegado al botón */}
+          {/* Feedback Section */}
           <div className="space-y-3 pt-2">
-
             {errorNegocio && (
-              <div className="flex items-center gap-3 bg-red-50 border border-red-200 rounded-2xl px-5 py-4">
+              <div className="flex items-center gap-3 bg-red-50 border border-red-200 rounded-2xl px-5 py-4 transition-all animate-fadeIn">
                 <AlertTriangle className="h-5 w-5 text-red-500 shrink-0" />
                 <p className="text-sm font-medium text-red-700">{errorNegocio}</p>
               </div>
             )}
 
+            {mensajeExito && (
+              <div className="flex items-center gap-3 bg-emerald-50 border border-emerald-200 rounded-2xl px-5 py-4 transition-all animate-fadeIn">
+                <CheckCircle className="h-5 w-5 text-emerald-500 shrink-0" />
+                <p className="text-sm font-medium text-emerald-700">{mensajeExito}</p>
+              </div>
+            )}
+
+            {/* Actions */}
             <div className="flex items-center justify-between">
               <Link
                 to="/mantenimientos"
                 className="px-6 py-3 text-slate-600 font-semibold hover:text-slate-900 transition-colors"
+                style={{ pointerEvents: (loading || mensajeExito) ? 'none' : 'auto' }}
               >
                 Cancelar
               </Link>
+              
               <button
                 type="submit"
-                disabled={loading}
-                className="inline-flex items-center justify-center px-8 py-3 bg-slate-900 hover:bg-slate-800 disabled:bg-slate-600 disabled:cursor-not-allowed text-white font-semibold rounded-xl transition-all shadow-lg shadow-slate-200 hover:shadow-xl"
+                disabled={loading || !!mensajeExito}
+                className={`inline-flex items-center justify-center px-8 py-3 font-semibold rounded-xl transition-all shadow-lg shadow-slate-200 hover:shadow-xl ${
+                  mensajeExito 
+                    ? "bg-emerald-600 text-white cursor-default" 
+                    : "bg-slate-900 hover:bg-slate-800 text-white disabled:bg-slate-600 disabled:cursor-not-allowed"
+                }`}
               >
                 {loading ? (
                   <>
                     <Loader2 className="h-5 w-5 mr-2 animate-spin" />
                     Generando orden...
+                  </>
+                ) : mensajeExito ? (
+                  <>
+                    <CheckCircle className="h-5 w-5 mr-2" />
+                    ¡Orden Creada!
                   </>
                 ) : (
                   <>
@@ -376,7 +459,6 @@ export default function MantenimientoForm() {
               </button>
             </div>
           </div>
-
         </form>
       </div>
     </div>

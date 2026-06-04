@@ -233,6 +233,7 @@ namespace GoVehiculos.API.Services
             if (dto.FechaProgramada == null)                 return "La fecha programada es obligatoria.";
             if (dto.FechaProgramada < DateOnly.FromDateTime(DateTime.Today))
                                                              return "La fecha programada no puede ser anterior a hoy.";
+            if (dto.EmpleadoId <= 0)                        return "El empleado asignado es obligatorio. Debe seleccionar un empleado válido.";
             return null;
         }
 

@@ -86,6 +86,7 @@ export default function MantenimientosList() {
   const [formSocio, setFormSocio]       = useState(FORM_SOCIO_INICIAL);
   const [socioLoading, setSocioLoading] = useState(false);
   const [socioError, setSocioError]     = useState(null);
+  const [socioExito, setSocioExito]     = useState(null);
 
   // ── Verificar si hay nuevas órdenes terminadas desde la última visita ───
   const verificarNuevasOrdenes = useCallback(async () => {
@@ -93,8 +94,6 @@ export default function MantenimientosList() {
       const res         = await api.get("/mantenimientos/contador-nuevas");
       const totalActual = res.data.count ?? 0;
       const visto       = parseInt(sessionStorage.getItem(SESSION_KEY_HISTORIAL) ?? "-1", 10);
-      // Si nunca visitó el historial (visto === -1) y hay órdenes → mostrar badge
-      // Si visitó y ahora hay más → mostrar badge
       setHayNuevasOrdenes(totalActual > 0 && totalActual > visto);
     } catch {
       // silencioso
@@ -155,6 +154,7 @@ export default function MantenimientosList() {
   // ── Lógica modal socio ─────────────────────────────────────────────────
   const abrirModalSocio = (vehiculo) => {
     setSocioError(null);
+    setSocioExito(null);
     setFormSocio(FORM_SOCIO_INICIAL);
     setModalSocio({ open: true, vehiculo });
   };
@@ -167,43 +167,99 @@ export default function MantenimientosList() {
     }
   };
 
+  const handleChangeSocio = (campo, valor) => {
+    setSocioError(null);
+    setSocioExito(null);
+    setFormSocio((p) => ({ ...p, [campo]: valor }));
+  };
+
   const confirmarFueraDeServicio = async () => {
     const vehiculo = modalSocio.vehiculo;
     setSocioLoading(true);
     setSocioError(null);
+    setSocioExito(null);
     try {
-      await api.post(`/vehiculos/${vehiculo.idVehiculo}/fuera-de-servicio`);
+      const res = await api.post(`/vehiculos/${vehiculo.idVehiculo}/fuera-de-servicio`);
+      setSocioExito(res.data?.mensaje || "Vehículo pasado a fuera de servicio.");
+      setTimeout(() => {
+        setModalSocio({ open: false, vehiculo: null });
+        cargar();
+      }, 2000);
     } catch (e) {
       setSocioError(e.response?.data?.mensaje || "Error al cambiar el estado del vehículo.");
       setSocioLoading(false);
-      return;
     }
-    setSocioLoading(false);
-    setModalSocio({ open: false, vehiculo: null });
-    cargar();
   };
 
   const confirmarHabilitar = async () => {
     const vehiculo = modalSocio.vehiculo;
-    // La validación de campos vacíos o inválidos la hace ValidarCamposHabilitar
-    // en el service. El error llega desde el backend vía socioError.
     setSocioLoading(true);
     setSocioError(null);
+    setSocioExito(null);
+
+    // Armado del payload omitiendo la fecha vacía para evitar fallos de deserialización
+    const payload = {
+      vehiculoId: vehiculo.idVehiculo,
+      tipo: formSocio.tipo,
+      descripcion: formSocio.descripcion,
+      prioridad: formSocio.prioridad,
+    };
+
+    if (formSocio.fechaRealizacion) {
+      payload.fechaRealizacion = formSocio.fechaRealizacion;
+    }
+
     try {
-      await api.post("/mantenimientos/habilitar-socio", {
-        vehiculoId:       vehiculo.idVehiculo,
-        tipo:             formSocio.tipo,
-        descripcion:      formSocio.descripcion,
-        prioridad:        formSocio.prioridad,
-        fechaRealizacion: formSocio.fechaRealizacion,
-      });
-      setModalSocio({ open: false, vehiculo: null });
-      cargar();
-      // Al habilitar socio se crea una orden finalizada → actualizar badge
-      verificarNuevasOrdenes();
-    } catch (e) {
-      setSocioError(e.response?.data?.mensaje || "Error al habilitar el vehículo.");
-    } finally {
+      const res = await api.post("/mantenimientos/habilitar-socio", payload);
+      
+      setSocioExito(res.data?.mensaje || "Vehículo habilitado correctamente.");
+      
+      // Esperar para mostrar el mensaje antes de cerrar
+      setTimeout(() => {
+        setModalSocio({ open: false, vehiculo: null });
+        cargar();
+        verificarNuevasOrdenes();
+      }, 2500);
+
+    } catch (err) {
+      let mensajeFinal = "Error inesperado al habilitar el vehículo. Intentá de nuevo.";
+
+      // 1. Mensajes del Service
+      if (err.response?.data?.mensaje) {
+        mensajeFinal = err.response.data.mensaje;
+
+        // Corrección para el mensaje de fecha por defecto del DateOnly
+        if (!formSocio.fechaRealizacion && mensajeFinal.includes("anterior a hoy")) {
+            mensajeFinal = "La fecha de realización es obligatoria.";
+        }
+      } 
+      // 2. Errores de validación de modelo de ASP.NET
+      else if (err.response?.status === 400 && err.response?.data?.errors) {
+        const errors = err.response.data.errors;
+        const propKey = Object.keys(errors).find(k => k.toLowerCase() !== "dto" && k !== "");
+        
+        if (propKey) {
+          const rawError = errors[propKey][0];
+          
+          if (rawError.toLowerCase().includes("required")) {
+            if (propKey.toLowerCase().includes("descripcion") || rawError.toLowerCase().includes("description")) {
+              mensajeFinal = "La descripción es obligatoria.";
+            } else if (propKey.toLowerCase().includes("tipo")) {
+              mensajeFinal = "El tipo de mantenimiento es obligatorio.";
+            } else if (propKey.toLowerCase().includes("fecha")) {
+              mensajeFinal = "La fecha de realización es obligatoria.";
+            } else {
+              mensajeFinal = `El campo ${propKey} es obligatorio.`;
+            }
+          } else {
+            mensajeFinal = rawError;
+          }
+        } else if (errors["dto"]) {
+          mensajeFinal = "Verificá que todos los campos requeridos estén completos.";
+        }
+      }
+
+      setSocioError(mensajeFinal);
       setSocioLoading(false);
     }
   };
@@ -497,7 +553,11 @@ export default function MantenimientosList() {
                     </p>
                   </div>
                 </div>
-                <button onClick={() => setModalSocio({ open: false, vehiculo: null })} className="text-slate-400 hover:text-slate-600 transition-colors shrink-0">
+                <button 
+                  onClick={() => setModalSocio({ open: false, vehiculo: null })} 
+                  className="text-slate-400 hover:text-slate-600 transition-colors shrink-0"
+                  disabled={socioLoading || !!socioExito}
+                >
                   <X className="h-5 w-5" />
                 </button>
               </div>
@@ -517,8 +577,9 @@ export default function MantenimientosList() {
                       <div className="relative">
                         <select
                           value={formSocio.tipo}
-                          onChange={(e) => setFormSocio(p => ({ ...p, tipo: e.target.value }))}
-                          className="w-full appearance-none px-4 py-3 bg-slate-50 border border-slate-200 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-slate-900 cursor-pointer"
+                          onChange={(e) => handleChangeSocio('tipo', e.target.value)}
+                          disabled={socioLoading || !!socioExito}
+                          className="w-full appearance-none px-4 py-3 bg-slate-50 border border-slate-200 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-slate-900 cursor-pointer disabled:opacity-60"
                         >
                           {TIPOS_MANTENIMIENTO.map(t => (
                             <option key={t.value} value={t.value}>{t.label}</option>
@@ -533,8 +594,9 @@ export default function MantenimientosList() {
                       <textarea
                         rows={3}
                         value={formSocio.descripcion}
-                        onChange={(e) => setFormSocio(p => ({ ...p, descripcion: e.target.value }))}
-                        className="w-full px-4 py-3 bg-slate-50 border border-slate-200 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-slate-900 resize-none transition-all"
+                        onChange={(e) => handleChangeSocio('descripcion', e.target.value)}
+                        disabled={socioLoading || !!socioExito}
+                        className="w-full px-4 py-3 bg-slate-50 border border-slate-200 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-slate-900 resize-none transition-all disabled:opacity-60"
                         placeholder="Describí el trabajo realizado por el socio..."
                       />
                     </div>
@@ -546,11 +608,12 @@ export default function MantenimientosList() {
                           <button
                             key={val}
                             type="button"
-                            onClick={() => setFormSocio(p => ({ ...p, prioridad: val }))}
+                            onClick={() => handleChangeSocio('prioridad', val)}
+                            disabled={socioLoading || !!socioExito}
                             className={`py-2 px-3 rounded-xl border text-xs font-semibold transition-all ${
                               formSocio.prioridad === val
                                 ? cfg.color + " ring-2 ring-offset-1 ring-current"
-                                : "bg-slate-50 border-slate-200 text-slate-500 hover:bg-slate-100"
+                                : "bg-slate-50 border-slate-200 text-slate-500 hover:bg-slate-100 disabled:opacity-50"
                             }`}
                           >
                             {cfg.label}
@@ -566,8 +629,9 @@ export default function MantenimientosList() {
                         <input
                           type="date"
                           value={formSocio.fechaRealizacion}
-                          onChange={(e) => setFormSocio(p => ({ ...p, fechaRealizacion: e.target.value }))}
-                          className="w-full pl-10 pr-4 py-3 bg-slate-50 border border-slate-200 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-slate-900 transition-all"
+                          onChange={(e) => handleChangeSocio('fechaRealizacion', e.target.value)}
+                          disabled={socioLoading || !!socioExito}
+                          className="w-full pl-10 pr-4 py-3 bg-slate-50 border border-slate-200 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-slate-900 transition-all disabled:opacity-60"
                         />
                       </div>
                     </div>
@@ -581,20 +645,51 @@ export default function MantenimientosList() {
                     </div>
                   </div>
 
+                  {/* Feedback: Error o Éxito */}
                   {socioError && (
-                    <div className="flex items-start gap-2 bg-red-50 border border-red-200 rounded-xl px-4 py-3 mt-4">
+                    <div className="flex items-start gap-2 bg-red-50 border border-red-200 rounded-xl px-4 py-3 mt-4 transition-all">
                       <AlertTriangle className="h-4 w-4 text-red-500 shrink-0 mt-0.5" />
                       <p className="text-sm text-red-700">{socioError}</p>
                     </div>
                   )}
 
+                  {socioExito && (
+                    <div className="flex items-center gap-3 bg-emerald-50 border border-emerald-200 rounded-xl px-4 py-3 mt-4 transition-all">
+                      <CheckCircle2 className="h-5 w-5 text-emerald-500 shrink-0" />
+                      <p className="text-sm font-medium text-emerald-700">{socioExito}</p>
+                    </div>
+                  )}
+
                   <div className="flex justify-end gap-3 mt-6 pt-4 border-t border-slate-100">
-                    <button onClick={() => setModalSocio({ open: false, vehiculo: null })} disabled={socioLoading} className="px-5 py-2.5 text-sm font-semibold text-slate-600 hover:bg-slate-100 rounded-xl transition-colors disabled:opacity-50">
+                    <button 
+                      onClick={() => setModalSocio({ open: false, vehiculo: null })} 
+                      disabled={socioLoading || !!socioExito} 
+                      className="px-5 py-2.5 text-sm font-semibold text-slate-600 hover:bg-slate-100 rounded-xl transition-colors disabled:opacity-50"
+                    >
                       Cancelar
                     </button>
-                    <button onClick={confirmarHabilitar} disabled={socioLoading} className="inline-flex items-center gap-2 px-5 py-2.5 text-sm font-semibold text-white bg-emerald-600 hover:bg-emerald-700 rounded-xl shadow-md transition-colors disabled:opacity-60">
-                      {socioLoading && <Loader2 className="h-4 w-4 animate-spin" />}
-                      Habilitar Vehículo
+                    <button 
+                      onClick={confirmarHabilitar} 
+                      disabled={socioLoading || !!socioExito} 
+                      className={`inline-flex items-center gap-2 px-5 py-2.5 text-sm font-semibold rounded-xl shadow-md transition-colors ${
+                        socioExito 
+                          ? "bg-emerald-600 text-white cursor-default" 
+                          : "text-white bg-emerald-600 hover:bg-emerald-700 disabled:opacity-60"
+                      }`}
+                    >
+                      {socioLoading ? (
+                        <>
+                          <Loader2 className="h-4 w-4 animate-spin" />
+                          Habilitando...
+                        </>
+                      ) : socioExito ? (
+                        <>
+                          <CheckCircle2 className="h-4 w-4" />
+                          ¡Habilitado!
+                        </>
+                      ) : (
+                        "Habilitar Vehículo"
+                      )}
                     </button>
                   </div>
                 </>
@@ -608,20 +703,51 @@ export default function MantenimientosList() {
                     <span className="font-semibold text-red-600">fuera de servicio</span> y no podrá ser reservado hasta que el socio realice el mantenimiento y vos lo habilites.
                   </p>
 
+                  {/* Feedback: Error o Éxito */}
                   {socioError && (
-                    <div className="flex items-start gap-2 bg-red-50 border border-red-200 rounded-xl px-4 py-3 mt-4">
+                    <div className="flex items-start gap-2 bg-red-50 border border-red-200 rounded-xl px-4 py-3 mt-4 transition-all">
                       <AlertTriangle className="h-4 w-4 text-red-500 shrink-0 mt-0.5" />
                       <p className="text-sm text-red-700">{socioError}</p>
                     </div>
                   )}
 
+                  {socioExito && (
+                    <div className="flex items-center gap-3 bg-emerald-50 border border-emerald-200 rounded-xl px-4 py-3 mt-4 transition-all">
+                      <CheckCircle2 className="h-5 w-5 text-emerald-500 shrink-0" />
+                      <p className="text-sm font-medium text-emerald-700">{socioExito}</p>
+                    </div>
+                  )}
+
                   <div className="flex justify-end gap-3 mt-6 pt-4 border-t border-slate-100">
-                    <button onClick={() => setModalSocio({ open: false, vehiculo: null })} disabled={socioLoading} className="px-5 py-2.5 text-sm font-semibold text-slate-600 hover:bg-slate-100 rounded-xl transition-colors disabled:opacity-50">
+                    <button 
+                      onClick={() => setModalSocio({ open: false, vehiculo: null })} 
+                      disabled={socioLoading || !!socioExito} 
+                      className="px-5 py-2.5 text-sm font-semibold text-slate-600 hover:bg-slate-100 rounded-xl transition-colors disabled:opacity-50"
+                    >
                       Cancelar
                     </button>
-                    <button onClick={confirmarFueraDeServicio} disabled={socioLoading} className="inline-flex items-center gap-2 px-5 py-2.5 text-sm font-semibold text-white bg-amber-500 hover:bg-amber-600 rounded-xl shadow-md transition-colors disabled:opacity-60">
-                      {socioLoading && <Loader2 className="h-4 w-4 animate-spin" />}
-                      Confirmar y pasar a fuera de servicio
+                    <button 
+                      onClick={confirmarFueraDeServicio} 
+                      disabled={socioLoading || !!socioExito} 
+                      className={`inline-flex items-center gap-2 px-5 py-2.5 text-sm font-semibold rounded-xl shadow-md transition-colors ${
+                        socioExito
+                          ? "bg-amber-600 text-white cursor-default"
+                          : "text-white bg-amber-500 hover:bg-amber-600 disabled:opacity-60"
+                      }`}
+                    >
+                      {socioLoading ? (
+                        <>
+                          <Loader2 className="h-4 w-4 animate-spin" />
+                          Confirmando...
+                        </>
+                      ) : socioExito ? (
+                        <>
+                          <CheckCircle2 className="h-4 w-4" />
+                          ¡Actualizado!
+                        </>
+                      ) : (
+                        "Confirmar y pasar a fuera de servicio"
+                      )}
                     </button>
                   </div>
                 </>
