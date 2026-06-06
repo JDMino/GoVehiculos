@@ -145,7 +145,11 @@ namespace GoVehiculos.API.Controllers
         public async Task<IActionResult> Cancelar(int id, [FromBody] MultaCancelarDTO dto)
         {
             var (exito, mensaje) = await _service.CancelarAsync(id, dto);
+            
+            // Si falla (ya sea por validación del Service o lógica interna del SP), devolvemos 422
             if (!exito) return UnprocessableEntity(new { mensaje });
+            
+            // Si el SP fue exitoso, devolvemos el mensaje exacto generado por la base de datos
             return Ok(new { mensaje });
         }
     }

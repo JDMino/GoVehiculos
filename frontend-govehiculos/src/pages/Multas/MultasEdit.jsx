@@ -82,6 +82,7 @@ function SectionHeader({
   );
 }
 
+// FormField, SelectField, TextArea e InfoReadOnly permanecen intactos para el renderizado
 function FormField({ label, required, children, hint, disabled }) {
   return (
     <div className="space-y-1.5">
@@ -124,6 +125,7 @@ function SelectField({
   );
 }
 
+// Ajuste fino en TextArea y solo lectura
 function TextArea({
   value,
   onChange,
@@ -156,8 +158,7 @@ function InfoReadOnly({ label, value }) {
   );
 }
 
-// ── Modal genérico de confirmación ──────────────────────────────────────────
-
+// Modal de confirmación para guardar cambios o descartar
 function ModalConfirmacion({
   open,
   titulo,
@@ -253,20 +254,14 @@ export default function MultasEdit() {
     estado: "",
   });
 
-  // Motivo cancelación (modal cancelar multa)
-  const [motivoCancelacion, setMotivoCancelacion] = useState("");
-
   // Guard: la multa está cancelada
   const [estaCancelada, setEstaCancelada] = useState(false);
 
-  // Modales
+  // Modales operativos restantes
   const [modalConfirmar, setModalConfirmar] = useState(false);
   const [modalCancelarForm, setModalCancelarForm] = useState(false);
-  const [modalCancelarMul, setModalCancelarMul] = useState(false);
 
   // ── Carga de datos ────────────────────────────────────────────────────
-  // El MultaResponseDTO ya incluye todos los datos de incidencia y penalización
-  // gracias al fix del backend. No se necesitan llamadas adicionales.
   const cargar = useCallback(async () => {
     setLoadingData(true);
     setErrorNegocio(null);
@@ -280,7 +275,6 @@ export default function MultasEdit() {
       setValores(valRes.data);
       setEstaCancelada(m.estaCancelada ?? m.estado === "cancelada");
 
-      // Info fija — todo viene del MultaResponseDTO
       setInfoFija({
         usuarioNombre: m.usuarioNombreCompleto,
         vehiculoPatente: m.vehiculoPatente,
@@ -291,14 +285,12 @@ export default function MultasEdit() {
         multaFechaCreacion: m.fechaCreacion,
       });
 
-      // Prellenar incidencia
       setFormIncidencia({
         tipo: m.incidenciaTipo ?? "",
         nivelGravedad: m.incidenciaNivelGravedad ?? "",
         descripcion: m.incidenciaDescripcion ?? "",
       });
 
-      // Prellenar multa
       setFormMulta({
         tipo: m.tipo ?? "",
         monto: String(m.monto ?? ""),
@@ -306,7 +298,6 @@ export default function MultasEdit() {
         estado: m.estado ?? "",
       });
 
-      // Prellenar penalización (viene en el mismo DTO)
       setFormPenalizacion({
         tipo: m.penalizacionTipo ?? "",
         motivo: m.penalizacionMotivo ?? "",
@@ -328,7 +319,7 @@ export default function MultasEdit() {
     cargar();
   }, [cargar]);
 
-  // ── Helpers de cambio de campo ────────────────────────────────────────
+  // Helpers de cambio de campo
   const changeInc = (campo, val) => {
     setErrorNegocio(null);
     setFormIncidencia((p) => ({ ...p, [campo]: val }));
@@ -378,47 +369,22 @@ export default function MultasEdit() {
       navigate("/multas");
     } catch (err) {
       const data = err.response?.data;
-      
-      // 1. Manejar errores automáticos de Data Annotations ([Required], etc.)
       if (data?.errors) {
         const primerCampoConError = Object.keys(data.errors)[0];
         const mensajeError = data.errors[primerCampoConError][0];
         setErrorNegocio(mensajeError);
-      } 
-      // 2. Manejar mensajes de validación personalizados devueltos por MultaService
-      else if (data?.mensaje) {
+      } else if (data?.mensaje) {
         setErrorNegocio(data.mensaje);
-      } 
-      // 3. Fallback genérico
-      else {
-        setErrorNegocio("Error inesperado al validar o guardar la multa. Revisá los datos.");
+      } else {
+        setErrorNegocio(
+          "Error inesperado al validar o guardar la multa. Revisá los datos.",
+        );
       }
     } finally {
       setLoading(false);
     }
   };
 
-  // ── Cancelar multa ────────────────────────────────────────────────────
-  const handleCancelarMulta = async () => {
-    setLoading(true);
-    setErrorNegocio(null);
-    setModalCancelarMul(false);
-    try {
-      await api.patch(`/multas/${id}/cancelar`, {
-        motivoCancelacion: motivoCancelacion.trim(),
-      });
-      navigate("/multas");
-    } catch (err) {
-      const data = err.response?.data;
-      setErrorNegocio(
-        data?.mensaje || "No se pudo cancelar la multa."
-      );
-    } finally {
-      setLoading(false);
-    }
-  };
-
-  // ── Loading ───────────────────────────────────────────────────────────
   if (loadingData) {
     return (
       <div className="min-h-screen bg-slate-50 flex items-center justify-center">
@@ -432,10 +398,9 @@ export default function MultasEdit() {
 
   const disabled = estaCancelada;
 
-  // ── Render ────────────────────────────────────────────────────────────
   return (
     <div className="min-h-screen bg-slate-50">
-      {/* ── Header ──────────────────────────────────────────────────────── */}
+      {/* Header */}
       <div className="bg-gradient-to-r from-slate-900 to-slate-800 text-white">
         <div className="max-w-4xl mx-auto px-6 py-8">
           <Link
@@ -465,7 +430,7 @@ export default function MultasEdit() {
       </div>
 
       <div className="max-w-4xl mx-auto px-6 py-8 space-y-6">
-        {/* ── Banner: multa cancelada ───────────────────────────────────── */}
+        {/* Banner: multa cancelada */}
         {estaCancelada && (
           <div className="flex items-start gap-3 bg-slate-100 border border-slate-300 rounded-2xl px-5 py-4">
             <Ban className="h-5 w-5 text-slate-500 shrink-0 mt-0.5" />
@@ -481,7 +446,7 @@ export default function MultasEdit() {
           </div>
         )}
 
-        {/* ── Info fija: usuario y vehículo ─────────────────────────────── */}
+        {/* Info fija */}
         <div className="bg-white rounded-2xl border border-slate-200 overflow-hidden">
           <SectionHeader
             icon={Info}
@@ -516,7 +481,7 @@ export default function MultasEdit() {
           </div>
         </div>
 
-        {/* ── SECCIÓN 1: Incidencia ─────────────────────────────────────── */}
+        {/* SECCIÓN 1: Incidencia */}
         <div
           className={`bg-white rounded-2xl border overflow-hidden ${disabled ? "border-slate-100 opacity-60" : "border-slate-200"}`}
         >
@@ -576,7 +541,7 @@ export default function MultasEdit() {
           </div>
         </div>
 
-        {/* ── SECCIÓN 2: Multa ──────────────────────────────────────────── */}
+        {/* SECCIÓN 2: Multa */}
         <div
           className={`bg-white rounded-2xl border overflow-hidden ${disabled ? "border-slate-100 opacity-60" : "border-slate-200"}`}
         >
@@ -657,7 +622,7 @@ export default function MultasEdit() {
           </div>
         </div>
 
-        {/* ── SECCIÓN 3: Penalización ───────────────────────────────────── */}
+        {/* SECCIÓN 3: Penalización */}
         <div
           className={`bg-white rounded-2xl border overflow-hidden ${disabled ? "border-slate-100 opacity-60" : "border-slate-200"}`}
         >
@@ -738,7 +703,6 @@ export default function MultasEdit() {
               </FormField>
             </div>
 
-            {/* Aviso: estado "revocada" no editable desde aquí */}
             {disabled && (
               <div className="flex items-start gap-3 bg-slate-50 border border-slate-200 rounded-xl px-4 py-3">
                 <Info className="h-4 w-4 text-slate-400 shrink-0 mt-0.5" />
@@ -752,13 +716,17 @@ export default function MultasEdit() {
           </div>
         </div>
 
-        {/* ── Error de negocio ──────────────────────────────────────────── */}
+        {/* Error de negocio */}
         {errorNegocio && (
           <div className="flex items-start gap-3 bg-red-50 border border-red-200 rounded-2xl px-5 py-4">
             <AlertTriangle className="h-5 w-5 text-red-500 shrink-0 mt-0.5" />
             <div className="flex-1">
-              <p className="text-sm font-semibold text-red-800">No se pudo confirmar la acción</p>
-              <p className="text-sm font-medium text-red-600 mt-0.5">{errorNegocio}</p>
+              <p className="text-sm font-semibold text-red-800">
+                No se pudo confirmar la acción
+              </p>
+              <p className="text-sm font-medium text-red-600 mt-0.5">
+                {errorNegocio}
+              </p>
             </div>
             <button
               onClick={() => setErrorNegocio(null)}
@@ -769,9 +737,9 @@ export default function MultasEdit() {
           </div>
         )}
 
-        {/* ── Acciones ──────────────────────────────────────────────────── */}
+        {/* Acciones del Formulario */}
         <div className="flex items-center justify-between gap-3 pb-4 flex-wrap">
-          {/* Izquierda: Cancelar formulario + Cancelar Multa */}
+          {/* Izquierda: Descartar cambios */}
           <div className="flex items-center gap-3">
             <button
               type="button"
@@ -780,25 +748,10 @@ export default function MultasEdit() {
             >
               Cancelar
             </button>
-
-            {!estaCancelada && (
-              <button
-                type="button"
-                onClick={() => {
-                  setMotivoCancelacion("");
-                  setModalCancelarMul(true);
-                }}
-                disabled={loading}
-                className="inline-flex items-center gap-2 px-5 py-3 bg-red-50 hover:bg-red-100 text-red-700 font-semibold text-sm rounded-xl border border-red-200 transition-all disabled:opacity-50"
-              >
-                <Ban className="h-4 w-4" />
-                Cancelar Multa
-              </button>
-            )}
           </div>
 
-          {/* Derecha: Confirmar cambios */}
-          {!estaCancelada && (
+          {/* Derecha: Guardar cambios o volver */}
+          {!estaCancelada ? (
             <button
               type="button"
               onClick={() => setModalConfirmar(true)}
@@ -817,10 +770,7 @@ export default function MultasEdit() {
                 </>
               )}
             </button>
-          )}
-
-          {/* Si está cancelada: solo botón de volver */}
-          {estaCancelada && (
+          ) : (
             <Link
               to="/multas"
               className="inline-flex items-center gap-2 px-6 py-3 bg-slate-900 hover:bg-slate-800 text-white font-semibold rounded-xl transition-all"
@@ -832,7 +782,7 @@ export default function MultasEdit() {
         </div>
       </div>
 
-      {/* ── Modal: confirmar cambios ───────────────────────────────────────── */}
+      {/* Modales de control de flujo */}
       <ModalConfirmacion
         open={modalConfirmar}
         titulo="¿Confirmar los cambios?"
@@ -844,7 +794,6 @@ export default function MultasEdit() {
         loading={loading}
       />
 
-      {/* ── Modal: confirmar cancelar formulario ───────────────────────────── */}
       <ModalConfirmacion
         open={modalCancelarForm}
         titulo="¿Descartar los cambios?"
@@ -855,36 +804,6 @@ export default function MultasEdit() {
         onCancelar={() => setModalCancelarForm(false)}
         loading={false}
       />
-
-      {/* ── Modal: cancelar multa ──────────────────────────────────────────── */}
-      <ModalConfirmacion
-        open={modalCancelarMul}
-        titulo="¿Cancelar esta multa?"
-        descripcion="Esta acción no puede deshacerse. La multa quedará cancelada y su penalización será revocada."
-        labelConfirmar="Sí, cancelar multa"
-        colorConfirmar="bg-red-600 hover:bg-red-700"
-        onConfirmar={handleCancelarMulta}
-        onCancelar={() => setModalCancelarMul(false)}
-        loading={loading}
-      >
-        <div className="mb-4">
-          <label className="text-sm font-medium text-slate-700 block mb-1.5">
-            Motivo de cancelación{" "}
-            <span className="text-slate-400 font-normal">(opcional)</span>
-          </label>
-          <textarea
-            rows={3}
-            value={motivoCancelacion}
-            onChange={(e) => setMotivoCancelacion(e.target.value)}
-            placeholder="Explicá brevemente el motivo del error o la razón de la cancelación..."
-            className="w-full px-4 py-3 bg-slate-50 border border-slate-200 rounded-xl text-sm text-slate-900 placeholder:text-slate-400 focus:outline-none focus:ring-2 focus:ring-red-300 resize-none transition-all"
-          />
-          <p className="text-xs text-slate-400 mt-1.5">
-            El motivo quedará registrado en la descripción de la multa para
-            trazabilidad.
-          </p>
-        </div>
-      </ModalConfirmacion>
     </div>
   );
 }

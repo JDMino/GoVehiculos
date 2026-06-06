@@ -1,4 +1,4 @@
-﻿using GoVehiculos.API.DTOs;
+﻿﻿using GoVehiculos.API.DTOs;
 using GoVehiculos.API.Models;
 using GoVehiculos.API.Observers;
 using GoVehiculos.API.Repositories;
@@ -215,7 +215,30 @@ namespace GoVehiculos.API.Services
 
         public async Task<(bool exito, string mensaje)> CancelarAsync(int id, MultaCancelarDTO dto)
         {
+            // 1. Ejecutar reglas de validación centralizadas
+            var (esValido, mensajeValidacion) = ValidarCancelacion(dto);
+            if (!esValido)
+            {
+                return (false, mensajeValidacion); // Corta la ejecución si falla
+            }
+
+            // 2. Invocar al repositorio (retorna el resultado y el mensaje nativo del SP)
             return await _multaRepo.CancelarConSPAsync(id, dto.MotivoCancelacion);
+        }
+
+        /// <summary>
+        /// Centraliza todas las reglas de negocio previas a la ejecución del SP de cancelación.
+        /// Permite añadir futuras validaciones de forma limpia sin llenar de IFs el método principal.
+        /// </summary>
+        private static (bool esValido, string mensaje) ValidarCancelacion(MultaCancelarDTO dto)
+        {
+            // Regla 1: Validar que el motivo no esté vacío ni sean puros espacios
+            if (string.IsNullOrWhiteSpace(dto.MotivoCancelacion))
+            {
+                return (false, "El motivo de la cancelación es obligatorio y no puede estar vacío.");
+            }
+            
+            return (true, string.Empty); // Pasó todas las validaciones
         }
 
         // ================================================================

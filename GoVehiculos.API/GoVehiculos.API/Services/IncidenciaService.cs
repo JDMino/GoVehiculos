@@ -1,4 +1,4 @@
-﻿using GoVehiculos.API.DTOs;
+﻿﻿using GoVehiculos.API.DTOs;
 using GoVehiculos.API.Models;
 using GoVehiculos.API.Repositories;
 
@@ -91,9 +91,20 @@ namespace GoVehiculos.API.Services
             var incidencia = await _repo.GetByIdAsync(id);
             if (incidencia == null) return (false, "Incidencia no encontrada.");
 
-            incidencia.Tipo = dto.Tipo.Trim().ToLower();
+            var tipoAnterior = incidencia.Tipo;
+            var tipoNuevo = dto.Tipo.Trim().ToLower();
+
+            incidencia.Tipo = tipoNuevo;
             incidencia.NivelGravedad = dto.NivelGravedad.Trim().ToLower();
             incidencia.Descripcion = dto.Descripcion.Trim();
+
+            // Efecto secundario si el tipo cambió a daño_fisico
+            if (tipoNuevo != tipoAnterior && tipoNuevo == "daño_fisico")
+            {
+                var vehiculo = await _vehiculoRepo.GetByIdSimpleAsync(incidencia.VehiculoId);
+                if (vehiculo != null)
+                    vehiculo.EstadoMecanico = "malo";
+            }
 
             await _repo.SaveChangesAsync();
             return (true, "Incidencia actualizada correctamente.");

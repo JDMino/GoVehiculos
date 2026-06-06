@@ -96,7 +96,62 @@ const TIPO_MULTA_CONFIG = {
   mixta: { label: "Mixta" },
 };
 
-// ── Helpers ─────────────────────────────────────────────────────────────────
+// ── Sub-componente: Modal de Confirmación Genérico ───────────────────────────
+
+function ModalConfirmacion({
+  open,
+  titulo,
+  descripcion,
+  labelConfirmar,
+  colorConfirmar,
+  onConfirmar,
+  onCancelar,
+  loading,
+  ocultarBotones = false, // <-- Nueva prop para limpiar el modal en caso de éxito
+  children,
+}) {
+  if (!open) return null;
+  return (
+    <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-900/40 backdrop-blur-sm">
+      <div className="bg-white rounded-2xl shadow-2xl w-full max-w-md animate-in fade-in zoom-in-95 duration-150">
+        <div className="p-6">
+          <div className="flex items-start gap-4 mb-4">
+            <div className="h-10 w-10 rounded-full bg-red-50 flex items-center justify-center shrink-0">
+              <Scale className="h-5 w-5 text-red-600" />
+            </div>
+            <div className="flex-1">
+              <h3 className="font-bold text-slate-900">{titulo}</h3>
+              <p className="text-sm text-slate-500 mt-1">{descripcion}</p>
+            </div>
+          </div>
+          {children}
+          
+          {!ocultarBotones && (
+            <div className="flex justify-end gap-3 pt-4 border-t border-slate-100">
+              <button
+                onClick={onCancelar}
+                disabled={loading}
+                className="px-5 py-2.5 text-sm font-semibold text-slate-600 hover:bg-slate-100 rounded-xl transition-colors disabled:opacity-50"
+              >
+                No, volver
+              </button>
+              <button
+                onClick={onConfirmar}
+                disabled={loading}
+                className={`inline-flex items-center gap-2 px-5 py-2.5 text-sm font-semibold text-white rounded-xl shadow-md transition-colors disabled:opacity-60 ${colorConfirmar}`}
+              >
+                {loading && <Loader2 className="h-4 w-4 animate-spin" />}
+                {labelConfirmar}
+              </button>
+            </div>
+          )}
+        </div>
+      </div>
+    </div>
+  );
+}
+
+// ── Helpers de formato ───────────────────────────────────────────────────────
 
 function BadgeEstado({ estado }) {
   const estadoNormalizado = estado?.toLowerCase();
@@ -156,7 +211,6 @@ function formatFecha(fechaStr) {
   });
 }
 
-// Corregido para manejar strings o números nulos
 function formatMonto(monto) {
   const num = Number(monto);
   if (!num || num === 0) return "$0";
@@ -175,6 +229,7 @@ export default function MultasList() {
   const [multas, setMultas] = useState([]);
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
+  const [canceling, setCanceling] = useState(false);
   const [error, setError] = useState(null);
 
   // Filtros
@@ -187,6 +242,15 @@ export default function MultasList() {
 
   // Tooltip cancelada
   const [tooltipId, setTooltipId] = useState(null);
+
+  // Estados control de cancelación en lista
+  const [modalCancelarMul, setModalCancelarMul] = useState(false);
+  const [multaACancelar, setMultaACancelar] = useState(null);
+  const [motivoCancelacion, setMotivoCancelacion] = useState("");
+  
+  // Mensajes de respuesta del Backend para el proceso de cancelación
+  const [errorCancelar, setErrorCancelar] = useState(null);
+  const [mensajeExito, setMensajeExito] = useState(null);
 
   // ── Carga de datos ─────────────────────────────────────────────────────
   const cargar = useCallback(async (silencioso = false) => {
@@ -208,11 +272,44 @@ export default function MultasList() {
     cargar();
   }, [cargar]);
 
+  // ── Cancelar multa en lote/lista ───────────────────────────────────────
+  const handleCancelarMulta = async () => {
+    if (!multaACancelar) return;
+    setCanceling(true);
+    setErrorCancelar(null);
+    setMensajeExito(null);
+    
+    try {
+      const response = await api.patch(`/multas/${multaACancelar}/cancelar`, {
+        motivoCancelacion: motivoCancelacion,
+      });
+      
+      // Capturamos el mensaje dinámico devuelto por el parámetro OUTPUT del SP
+      const textoExito = response.data?.mensaje || "Multa cancelada correctamente.";
+      setMensajeExito(textoExito);
+
+      // Espera de UX para leer el cartel de éxito antes de limpiar la UI y cerrar el modal
+      setTimeout(async () => {
+        setModalCancelarMul(false);
+        setMotivoCancelacion("");
+        setMensajeExito(null);
+        setMultaACancelar(null);
+        await cargar(true); // Refresco silencioso de la tabla de fondo
+      }, 2200);
+
+    } catch (err) {
+      const data = err.response?.data;
+      // Captura ya sea la validación de campo vacío del Service o un error lógico controlado del SP
+      setErrorCancelar(data?.mensaje || "No se pudo cancelar la multa seleccionada.");
+    } finally {
+      setCanceling(false);
+    }
+  };
+
   // ── Filtrado ───────────────────────────────────────────────────────────
   const filtradas = multas.filter((m) => {
     const q = searchTerm.toLowerCase();
 
-    // Mapeado a propiedades reales del DTO (estado, tipo, etc.)
     const coincideTexto =
       !q ||
       m.usuarioNombreCompleto?.toLowerCase().includes(q) ||
@@ -244,7 +341,7 @@ export default function MultasList() {
     );
   });
 
-  // Contadores para chips de resumen (Corregidos con m.estado)
+  // Contadores
   const countPendiente = multas.filter(
     (m) => m.estado?.toLowerCase() === "pendiente",
   ).length;
@@ -268,8 +365,6 @@ export default function MultasList() {
     setFiltroTipoMulta("todos");
     setSearchTerm("");
   };
-
-  // ── Render ─────────────────────────────────────────────────────────────
 
   if (loading) {
     return (
@@ -375,7 +470,7 @@ export default function MultasList() {
       </div>
 
       <div className="max-w-7xl mx-auto px-6 py-6 space-y-4">
-        {/* ── Error global ─────────────────────────────────────────────────── */}
+        {/* ── Error global de listado ────────────────────────────────────────── */}
         {error && (
           <div className="flex items-center gap-3 bg-red-50 border border-red-200 rounded-2xl px-5 py-4">
             <AlertTriangle className="h-5 w-5 text-red-500 shrink-0" />
@@ -441,7 +536,6 @@ export default function MultasList() {
               </button>
             )}
 
-            {/* Conteo de resultados */}
             <span className="ml-auto text-xs text-slate-500 hidden sm:block">
               {filtradas.length} de {multas.length} resultado
               {filtradas.length !== 1 ? "s" : ""}
@@ -609,132 +703,152 @@ export default function MultasList() {
                       </span>
                     </th>
                     <th className="px-5 py-3.5 text-right text-xs font-semibold text-slate-500 uppercase tracking-wide">
-                      Acción
+                      Acciones
                     </th>
                   </tr>
                 </thead>
                 <tbody className="divide-y divide-slate-100">
-                  {filtradas.map((m) => (
-                    <tr
-                      key={m.idMulta}
-                      className={`transition-colors ${m.estaCancelada ? "bg-slate-50/60" : "hover:bg-slate-50"}`}
-                    >
-                      {/* ID */}
-                      <td className="px-5 py-4">
-                        <span className="font-mono text-xs font-bold text-slate-400">
-                          #{m.idMulta}
-                        </span>
-                      </td>
+                  {filtradas.map((m) => {
+                    const isCancelada = m.estaCancelada || m.estado?.toLowerCase() === "cancelada";
 
-                      {/* Usuario */}
-                      <td className="px-5 py-4">
-                        <div className="flex items-center gap-2 min-w-0">
-                          <div className="h-7 w-7 rounded-lg bg-slate-100 flex items-center justify-center shrink-0">
-                            <User className="h-3.5 w-3.5 text-slate-500" />
+                    return (
+                      <tr
+                        key={m.idMulta}
+                        className={`transition-colors ${isCancelada ? "bg-slate-50/60" : "hover:bg-slate-50"}`}
+                      >
+                        {/* ID */}
+                        <td className="px-5 py-4">
+                          <span className="font-mono text-xs font-bold text-slate-400">
+                            #{m.idMulta}
+                          </span>
+                        </td>
+
+                        {/* Usuario */}
+                        <td className="px-5 py-4">
+                          <div className="flex items-center gap-2 min-w-0">
+                            <div className="h-7 w-7 rounded-lg bg-slate-100 flex items-center justify-center shrink-0">
+                              <User className="h-3.5 w-3.5 text-slate-500" />
+                            </div>
+                            <span className="text-sm font-medium text-slate-800 truncate max-w-[140px]">
+                              {m.usuarioNombreCompleto}
+                            </span>
                           </div>
-                          <span className="text-sm font-medium text-slate-800 truncate max-w-[140px]">
-                            {m.usuarioNombreCompleto}
+                        </td>
+
+                        {/* Vehículo */}
+                        <td className="px-5 py-4">
+                          <div className="flex items-center gap-2">
+                            <Car className="h-3.5 w-3.5 text-slate-400 shrink-0" />
+                            <span className="font-mono text-xs font-bold text-slate-700 bg-slate-100 px-2 py-0.5 rounded border border-slate-200">
+                              {m.vehiculoPatente}
+                            </span>
+                          </div>
+                        </td>
+
+                        {/* Incidencia */}
+                        <td className="px-5 py-4">
+                          <BadgeTipoIncidencia tipo={m.incidenciaTipo} />
+                        </td>
+
+                        {/* Gravedad */}
+                        <td className="px-5 py-4">
+                          <BadgeGravedad nivel={m.incidenciaNivelGravedad} />
+                        </td>
+
+                        {/* Multa tipo + monto */}
+                        <td className="px-5 py-4">
+                          <div className="space-y-0.5">
+                            <p className="text-xs font-semibold text-slate-600">
+                              {TIPO_MULTA_CONFIG[m.tipo?.toLowerCase()]?.label ??
+                                m.tipo}
+                            </p>
+                            <p className="text-sm font-bold text-slate-900">
+                              {formatMonto(m.monto)}
+                            </p>
+                          </div>
+                        </td>
+
+                        {/* Estado */}
+                        <td className="px-5 py-4">
+                          <BadgeEstado estado={m.estado} />
+                        </td>
+
+                        {/* Fecha creación */}
+                        <td className="px-5 py-4">
+                          <span className="text-xs text-slate-500">
+                            {formatFecha(m.fechaCreacion)}
                           </span>
-                        </div>
-                      </td>
+                        </td>
 
-                      {/* Vehículo */}
-                      <td className="px-5 py-4">
-                        <div className="flex items-center gap-2">
-                          <Car className="h-3.5 w-3.5 text-slate-400 shrink-0" />
-                          <span className="font-mono text-xs font-bold text-slate-700 bg-slate-100 px-2 py-0.5 rounded border border-slate-200">
-                            {m.vehiculoPatente}
-                          </span>
-                        </div>
-                      </td>
+                        {/* Penalización */}
+                        <td className="px-5 py-4">
+                          {m.penalizacionTipo ? (
+                            <span className="text-xs text-slate-600 font-medium">
+                              {TIPO_PENALIZACION_CONFIG[m.penalizacionTipo]
+                                ?.label ?? m.penalizacionTipo}
+                            </span>
+                          ) : (
+                            <span className="text-xs text-slate-400">—</span>
+                          )}
+                        </td>
 
-                      {/* Incidencia */}
-                      <td className="px-5 py-4">
-                        <BadgeTipoIncidencia tipo={m.incidenciaTipo} />
-                      </td>
-
-                      {/* Gravedad */}
-                      <td className="px-5 py-4">
-                        <BadgeGravedad nivel={m.incidenciaNivelGravedad} />
-                      </td>
-
-                      {/* Multa tipo + monto (Corregido: m.tipo y m.monto) */}
-                      <td className="px-5 py-4">
-                        <div className="space-y-0.5">
-                          <p className="text-xs font-semibold text-slate-600">
-                            {TIPO_MULTA_CONFIG[m.tipo?.toLowerCase()]?.label ??
-                              m.tipo}
-                          </p>
-                          <p className="text-sm font-bold text-slate-900">
-                            {formatMonto(m.monto)}
-                          </p>
-                        </div>
-                      </td>
-
-                      {/* Estado (Corregido: m.estado) */}
-                      <td className="px-5 py-4">
-                        <BadgeEstado estado={m.estado} />
-                      </td>
-
-                      {/* Fecha creación (Corregido: m.fechaCreacion) */}
-                      <td className="px-5 py-4">
-                        <span className="text-xs text-slate-500">
-                          {formatFecha(m.fechaCreacion)}
-                        </span>
-                      </td>
-
-                      {/* Penalización */}
-                      <td className="px-5 py-4">
-                        {m.penalizacionTipo ? (
-                          <span className="text-xs text-slate-600 font-medium">
-                            {TIPO_PENALIZACION_CONFIG[m.penalizacionTipo]
-                              ?.label ?? m.penalizacionTipo}
-                          </span>
-                        ) : (
-                          <span className="text-xs text-slate-400">—</span>
-                        )}
-                      </td>
-
-                      {/* Acción */}
-                      <td className="px-5 py-4 text-right">
-                        {m.estaCancelada ? (
-                          <div
-                            className="relative inline-block"
-                            onMouseEnter={() => setTooltipId(m.idMulta)}
-                            onMouseLeave={() => setTooltipId(null)}
-                          >
-                            <button
-                              disabled
-                              className="px-3 py-1.5 text-xs font-semibold text-slate-400 bg-slate-100 border border-slate-200 rounded-lg cursor-not-allowed"
-                            >
-                              Editar
-                            </button>
-                            {tooltipId === m.idMulta && (
-                              <div className="absolute right-0 bottom-full mb-2 z-20 w-56 bg-slate-900 text-white text-xs rounded-xl px-3 py-2 shadow-xl leading-relaxed pointer-events-none">
-                                <div className="flex items-start gap-1.5">
-                                  <Ban className="h-3.5 w-3.5 shrink-0 mt-0.5 text-slate-400" />
-                                  <span>
-                                    Esta multa fue cancelada y no puede
-                                    modificarse.
-                                  </span>
-                                </div>
-                                <div className="absolute right-4 top-full w-0 h-0 border-l-4 border-r-4 border-t-4 border-transparent border-t-slate-900" />
+                        {/* Acciones combinadas en última columna */}
+                        <td className="px-5 py-4 text-right">
+                          <div className="flex items-center justify-end gap-2">
+                            {isCancelada ? (
+                              <div
+                                className="relative inline-block"
+                                onMouseEnter={() => setTooltipId(m.idMulta)}
+                                onMouseLeave={() => setTooltipId(null)}
+                              >
+                                <button
+                                  disabled
+                                  className="px-3 py-1.5 text-xs font-semibold text-slate-400 bg-slate-100 border border-slate-200 rounded-lg cursor-not-allowed inline-flex items-center gap-1"
+                                >
+                                  Editar
+                                </button>
+                                {tooltipId === m.idMulta && (
+                                  <div className="absolute right-0 bottom-full mb-2 z-20 w-56 bg-slate-900 text-white text-xs rounded-xl px-3 py-2 shadow-xl leading-relaxed pointer-events-none text-left">
+                                    <div className="flex items-start gap-1.5">
+                                      <Ban className="h-3.5 w-3.5 shrink-0 mt-0.5 text-slate-400" />
+                                      <span>
+                                        Esta multa fue cancelada y no puede
+                                        modificarse.
+                                      </span>
+                                    </div>
+                                    <div className="absolute right-4 top-full w-0 h-0 border-l-4 border-r-4 border-t-4 border-transparent border-t-slate-900" />
+                                  </div>
+                                )}
                               </div>
+                            ) : (
+                              <>
+                                <button
+                                  onClick={() =>
+                                    navigate(`/multas/${m.idMulta}/editar`)
+                                  }
+                                  className="px-3 py-1.5 text-xs font-semibold text-slate-700 bg-white border border-slate-200 rounded-lg hover:bg-slate-900 hover:text-white hover:border-slate-900 transition-all shadow-sm"
+                                >
+                                  Editar
+                                </button>
+                                <button
+                                  onClick={() => {
+                                    setMultaACancelar(m.idMulta);
+                                    setMotivoCancelacion("");
+                                    setErrorCancelar(null);
+                                    setMensajeExito(null);
+                                    setModalCancelarMul(true);
+                                  }}
+                                  className="px-3 py-1.5 text-xs font-semibold text-red-600 bg-white border border-slate-200 rounded-lg hover:bg-red-50 hover:text-red-700 hover:border-red-200 transition-all shadow-sm"
+                                >
+                                  Cancelar
+                                </button>
+                              </>
                             )}
                           </div>
-                        ) : (
-                          <button
-                            onClick={() =>
-                              navigate(`/multas/${m.idMulta}/editar`)
-                            }
-                            className="px-3 py-1.5 text-xs font-semibold text-slate-700 bg-white border border-slate-200 rounded-lg hover:bg-slate-900 hover:text-white hover:border-slate-900 transition-all shadow-sm"
-                          >
-                            Editar
-                          </button>
-                        )}
-                      </td>
-                    </tr>
-                  ))}
+                        </td>
+                      </tr>
+                    );
+                  })}
                 </tbody>
               </table>
             </div>
@@ -748,6 +862,67 @@ export default function MultasList() {
           </p>
         )}
       </div>
+
+      {/* ── Modal: Cancelar Multa desde el Listado ─────────────────────────── */}
+      <ModalConfirmacion
+        open={modalCancelarMul}
+        titulo={mensajeExito ? "¡Operación Exitosa!" : `¿Cancelar la multa #${multaACancelar}?`}
+        descripcion={mensajeExito ? "El sistema ha procesado los cambios correctamente." : "Esta acción revocará de manera inmediata las penalizaciones operativas asociadas a esta multa."}
+        labelConfirmar="Sí, cancelar multa"
+        colorConfirmar="bg-red-600 hover:bg-red-700"
+        onConfirmar={handleCancelarMulta}
+        onCancelar={() => {
+          if (!mensajeExito) { // Bloquea el cierre accidental durante el timeout de éxito
+            setModalCancelarMul(false);
+            setMultaACancelar(null);
+            setErrorCancelar(null);
+          }
+        }}
+        loading={canceling}
+        ocultarBotones={!!mensajeExito} // Deshace los botones cuando muestra el mensaje de éxito
+      >
+        {/* Banner de Éxito (Muestra la respuesta nativa del Stored Procedure) */}
+        {mensajeExito && (
+          <div className="mb-4 flex items-start gap-3 bg-emerald-50 border border-emerald-200 rounded-xl p-4 animate-in fade-in zoom-in-95 duration-200">
+            <CheckCircle2 className="h-5 w-5 text-emerald-600 shrink-0 mt-0.5" />
+            <div>
+              <p className="text-xs font-bold text-emerald-800 uppercase tracking-wide">Confirmación del Servidor</p>
+              <p className="text-sm font-semibold text-emerald-700 mt-1">{mensajeExito}</p>
+            </div>
+          </div>
+        )}
+
+        {/* Banner de Error (Validaciones del Service o errores controlados del SP) */}
+        {errorCancelar && !mensajeExito && (
+          <div className="mb-4 flex items-start gap-3 bg-red-50 border border-red-200 rounded-xl p-3.5 animate-in fade-in zoom-in-95 duration-150">
+            <AlertTriangle className="h-4 w-4 text-red-500 shrink-0 mt-0.5" />
+            <div>
+              <p className="text-xs font-semibold text-red-800 uppercase tracking-wide">Error del Sistema</p>
+              <p className="text-xs font-medium text-red-700 mt-0.5">{errorCancelar}</p>
+            </div>
+          </div>
+        )}
+
+        {/* Formulario de motivo*/}
+        {!mensajeExito && (
+          <div className="mb-4">
+            <label className="text-sm font-semibold text-slate-700 block mb-1.5">
+              Motivo de cancelación <span className="text-red-500 font-bold">*</span>
+            </label>
+            <textarea
+              rows={3}
+              disabled={canceling}
+              value={motivoCancelacion}
+              onChange={(e) => setMotivoCancelacion(e.target.value)}
+              placeholder="Explicá detalladamente el motivo del error o la razón de la cancelación..."
+              className="w-full px-4 py-3 bg-slate-50 border border-slate-200 rounded-xl text-sm text-slate-900 placeholder:text-slate-400 focus:outline-none focus:ring-2 focus:ring-red-300 resize-none transition-all disabled:opacity-50"
+            />
+            <p className="text-xs text-slate-400 mt-1.5">
+              El motivo quedará registrado en el historial del sistema para auditorías.
+            </p>
+          </div>
+        )}
+      </ModalConfirmacion>
     </div>
   );
 }
