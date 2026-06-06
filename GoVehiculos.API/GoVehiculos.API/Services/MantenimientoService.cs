@@ -202,7 +202,6 @@ namespace GoVehiculos.API.Services
         // ================================================================
         // Validaciones privadas
         // ================================================================
-
         private static string? ValidarCamposCreate(MantenimientoCreateDTO dto)
         {
             if (string.IsNullOrWhiteSpace(dto.Tipo)) return "El tipo de mantenimiento es obligatorio.";
@@ -220,21 +219,6 @@ namespace GoVehiculos.API.Services
             if (string.IsNullOrWhiteSpace(dto.Tipo)) return "El tipo es obligatorio.";
             if (string.IsNullOrWhiteSpace(dto.Descripcion)) return "La descripción es obligatoria.";
             if (dto.FechaRealizacion == default) return "La fecha de realización es obligatoria.";
-            return null;
-        }
-
-        private static string? ValidarCamposFinalizar(MantenimientoFinalizarDTO dto)
-        {
-            if (string.IsNullOrWhiteSpace(dto.Descripcion)) return "La descripción es obligatoria.";
-            if (string.IsNullOrWhiteSpace(dto.RealizadoPor)) return "Debe indicar quién realizó el trabajo.";
-            if (dto.FechaRealizacion == default) return "La fecha de realización es obligatoria.";
-            if (dto.Costo < 0) return "El costo no puede ser negativo.";
-            return null;
-        }
-
-        private static string? ValidarCamposCancelar(MantenimientoCancelarDTO dto)
-        {
-            if (string.IsNullOrWhiteSpace(dto.Descripcion)) return "Debe indicar el motivo de cancelación.";
             return null;
         }
 
