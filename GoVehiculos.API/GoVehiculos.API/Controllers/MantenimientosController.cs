@@ -145,7 +145,7 @@ namespace GoVehiculos.API.Controllers
         public async Task<IActionResult> Iniciar(int id, [FromBody] MantenimientoIniciarDTO dto,
             [FromQuery] int empleadoId)
         {
-            var (exito, mensaje) = await _service.IniciarAsync(id, empleadoId);
+            var (exito, mensaje) = await _service.EjecutarAccionAsync(id, empleadoId, "iniciar");
             if (!exito) return UnprocessableEntity(new { mensaje });
             return Ok(new { mensaje });
         }
@@ -154,7 +154,7 @@ namespace GoVehiculos.API.Controllers
         public async Task<IActionResult> Finalizar(int id, [FromBody] MantenimientoFinalizarDTO dto,
             [FromQuery] int empleadoId)
         {
-            var (exito, mensaje) = await _service.FinalizarAsync(id, empleadoId, dto);
+            var (exito, mensaje) = await _service.EjecutarAccionAsync(id, empleadoId, "finalizar", dto);
             if (!exito) return UnprocessableEntity(new { mensaje });
             return Ok(new { mensaje });
         }
@@ -163,7 +163,7 @@ namespace GoVehiculos.API.Controllers
         public async Task<IActionResult> Cancelar(int id, [FromBody] MantenimientoCancelarDTO dto,
             [FromQuery] int empleadoId)
         {
-            var (exito, mensaje) = await _service.CancelarAsync(id, empleadoId, dto);
+            var (exito, mensaje) = await _service.EjecutarAccionAsync(id, empleadoId, "cancelar", dto);
             if (!exito) return UnprocessableEntity(new { mensaje });
             return Ok(new { mensaje });
         }

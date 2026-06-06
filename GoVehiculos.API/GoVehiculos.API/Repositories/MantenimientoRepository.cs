@@ -11,6 +11,7 @@ namespace GoVehiculos.API.Repositories
         Task<int> ContarTerminadosAsync();
         Task<List<Mantenimiento>> GetAllAsync(string? estado = null);
         Task<Mantenimiento?> GetByIdAsync(int id);
+        Task<Mantenimiento?> GetByIdSimpleAsync(int id);
         Task<Mantenimiento?> GetByIdConVehiculoAsync(int id);
         Task<List<Mantenimiento>> GetByEmpleadoAsync(int empleadoId);
         Task<List<Mantenimiento>> GetActivosPorVehiculosAsync(List<int> vehiculoIds);
@@ -102,6 +103,11 @@ namespace GoVehiculos.API.Repositories
         {
             return await _context.Mantenimientos
                 .Include(m => m.Vehiculo)
+                .FirstOrDefaultAsync(m => m.IdMantenimiento == id);
+        }
+        
+        public async Task<Mantenimiento?> GetByIdSimpleAsync(int id)
+        {             return await _context.Mantenimientos
                 .FirstOrDefaultAsync(m => m.IdMantenimiento == id);
         }
 

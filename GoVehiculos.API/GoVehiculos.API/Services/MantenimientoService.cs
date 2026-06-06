@@ -7,23 +7,31 @@ namespace GoVehiculos.API.Services
 {
     /// <summary>
     /// Contexto del patrón Strategy para las acciones del empleado.
-    /// Las tres estrategias (Iniciar, Finalizar, Cancelar) permanecen
-    /// intactas. El SP reemplaza únicamente la creación de órdenes,
-    /// que no tenía Strategy asociada.
+    /// En lugar de tres métodos separados (IniciarAsync, FinalizarAsync, CancelarAsync),
+    /// expone un único punto de entrada EjecutarAccionAsync que selecciona
+    /// la estrategia correspondiente mediante un diccionario.
+    /// Cada estrategia declara si necesita la navegación a Vehiculo mediante
+    /// la propiedad NecesitaVehiculo, evitando que el service tome esa
+    /// decisión basándose en el nombre de la acción.
     /// </summary>
     public class MantenimientoService
     {
         private readonly IMantenimientoRepository _repo;
-        private readonly IVehiculoRepository      _vehiculoRepo;
+        private readonly IVehiculoRepository _vehiculoRepo;
 
-        private readonly IAccionMantenimientoStrategy _iniciarStrategy   = new IniciarStrategy();
-        private readonly IAccionMantenimientoStrategy _finalizarStrategy = new FinalizarStrategy();
-        private readonly IAccionMantenimientoStrategy _cancelarStrategy  = new CancelarStrategy();
+        private readonly Dictionary<string, IAccionMantenimientoStrategy> _strategies;
 
         public MantenimientoService(IMantenimientoRepository repo, IVehiculoRepository vehiculoRepo)
         {
-            _repo         = repo;
+            _repo = repo;
             _vehiculoRepo = vehiculoRepo;
+
+            _strategies = new Dictionary<string, IAccionMantenimientoStrategy>
+            {
+                ["iniciar"] = new IniciarStrategy(),
+                ["finalizar"] = new FinalizarStrategy(),
+                ["cancelar"] = new CancelarStrategy()
+            };
         }
 
         // ================================================================
@@ -62,21 +70,6 @@ namespace GoVehiculos.API.Services
         // PARTE 1 — Órdenes (admin)
         // ================================================================
 
-        // ── CreateAsync — con SP ──────────────────────────────────────
-        // ANTES: este método ejecutaba 3 queries LINQ separadas para
-        // validar (GetByIdSimpleAsync + TieneActivoAsync + verificaciones
-        // en memoria), luego modificaba vehiculo.Estado en memoria,
-        // llamaba AddAsync(mantenimiento) y finalmente SaveChangesAsync(),
-        // que emitía el INSERT y el UPDATE como statements separados
-        // en la transacción implícita de EF.
-        //
-        // DESPUÉS: solo valida los campos del DTO (responsabilidad del
-        // service) y delega la operación completa a _repo.CrearConSPAsync().
-        // El SP encapsula las validaciones de negocio, el INSERT en
-        // Mantenimiento y el UPDATE en Vehiculo en una única transacción
-        // atómica en SQL Server. El service recibe el ID generado y lo
-        // usa para devolver el DTO de la orden creada.
-        // ─────────────────────────────────────────────────────────────
         public async Task<(bool exito, string mensaje, MantenimientoResponseDTO? dto)> CreateAsync(
             MantenimientoCreateDTO dto)
         {
@@ -84,11 +77,11 @@ namespace GoVehiculos.API.Services
             if (errorCampos != null) return (false, errorCampos, null);
 
             var (exito, mensaje, idMantenimiento) = await _repo.CrearConSPAsync(
-                vehiculoId:      dto.VehiculoId,
-                empleadoId:      dto.EmpleadoId,
-                tipo:            dto.Tipo,
-                descripcion:     dto.Descripcion,
-                prioridad:       dto.Prioridad,
+                vehiculoId: dto.VehiculoId,
+                empleadoId: dto.EmpleadoId,
+                tipo: dto.Tipo,
+                descripcion: dto.Descripcion,
+                prioridad: dto.Prioridad,
                 fechaProgramada: dto.FechaProgramada);
 
             if (!exito) return (false, mensaje, null);
@@ -112,7 +105,7 @@ namespace GoVehiculos.API.Services
                 return (false, "El vehículo debe estar en estado 'fuera de servicio' para poder habilitarlo.", null);
 
             var mantenimiento = CrearRegistroSocioDesdeDTO(dto);
-            vehiculo.Estado         = "disponible";
+            vehiculo.Estado = "disponible";
             vehiculo.EstadoMecanico = "bueno";
 
             await _repo.AddAsync(mantenimiento);
@@ -127,14 +120,14 @@ namespace GoVehiculos.API.Services
             var existing = await _repo.GetByIdAsync(id);
             if (existing == null) return false;
 
-            existing.Estado           = dto.Estado;
-            existing.Prioridad        = dto.Prioridad;
-            existing.FechaProgramada  = dto.FechaProgramada;
+            existing.Estado = dto.Estado;
+            existing.Prioridad = dto.Prioridad;
+            existing.FechaProgramada = dto.FechaProgramada;
             existing.FechaRealizacion = dto.FechaRealizacion;
-            existing.Costo            = dto.Costo;
-            existing.RealizadoPor     = dto.RealizadoPor;
-            existing.Descripcion      = dto.Descripcion;
-            existing.EmpleadoId       = dto.EmpleadoId;
+            existing.Costo = dto.Costo;
+            existing.RealizadoPor = dto.RealizadoPor;
+            existing.Descripcion = dto.Descripcion;
+            existing.EmpleadoId = dto.EmpleadoId;
 
             await _repo.SaveChangesAsync();
             return true;
@@ -151,51 +144,36 @@ namespace GoVehiculos.API.Services
         }
 
         // ================================================================
-        // PARTE 2 — Vista del empleado (patrón Strategy intacto)
+        // PARTE 2 — Vista del empleado (patrón Strategy)
         // ================================================================
 
-        public async Task<(bool exito, string mensaje)> IniciarAsync(int id, int empleadoId)
+        /// <summary>
+        /// Punto de entrada único para todas las acciones del empleado.
+        /// Selecciona la estrategia correspondiente al nombre de la acción,
+        /// delega la carga de la entidad según NecesitaVehiculo, y ejecuta
+        /// el algoritmo encapsulado en la estrategia concreta.
+        /// Agregar una nueva acción implica solo crear la estrategia y
+        /// registrarla en el diccionario del constructor.
+        /// </summary>
+        public async Task<(bool exito, string mensaje)> EjecutarAccionAsync(
+            int id,
+            int empleadoId,
+            string accion,
+            object? contexto = null)
         {
-            var m = await _repo.GetByIdAsync(id);
+            if (!_strategies.TryGetValue(accion, out var strategy))
+                return (false, $"Acción '{accion}' no reconocida.");
+
+            var m = strategy.NecesitaVehiculo
+                ? await _repo.GetByIdConVehiculoAsync(id)
+                : await _repo.GetByIdSimpleAsync(id);
+
             if (m == null) return (false, "Mantenimiento no encontrado.");
 
-            var (exito, mensaje) = await _iniciarStrategy.EjecutarAsync(m, empleadoId);
-            if (!exito) return (false, mensaje);
+            var (exito, mensaje) = await strategy.EjecutarAsync(m, empleadoId, contexto);
+            if (exito) await _repo.SaveChangesAsync();
 
-            await _repo.SaveChangesAsync();
-            return (true, mensaje);
-        }
-
-        public async Task<(bool exito, string mensaje)> FinalizarAsync(
-            int id, int empleadoId, MantenimientoFinalizarDTO dto)
-        {
-            var errorCampos = ValidarCamposFinalizar(dto);
-            if (errorCampos != null) return (false, errorCampos);
-
-            var m = await _repo.GetByIdConVehiculoAsync(id);
-            if (m == null) return (false, "Mantenimiento no encontrado.");
-
-            var (exito, mensaje) = await _finalizarStrategy.EjecutarAsync(m, empleadoId, dto);
-            if (!exito) return (false, mensaje);
-
-            await _repo.SaveChangesAsync();
-            return (true, mensaje);
-        }
-
-        public async Task<(bool exito, string mensaje)> CancelarAsync(
-            int id, int empleadoId, MantenimientoCancelarDTO dto)
-        {
-            var errorCampos = ValidarCamposCancelar(dto);
-            if (errorCampos != null) return (false, errorCampos);
-
-            var m = await _repo.GetByIdAsync(id);
-            if (m == null) return (false, "Mantenimiento no encontrado.");
-
-            var (exito, mensaje) = await _cancelarStrategy.EjecutarAsync(m, empleadoId, dto);
-            if (!exito) return (false, mensaje);
-
-            await _repo.SaveChangesAsync();
-            return (true, mensaje);
+            return (exito, mensaje);
         }
 
         // ================================================================
@@ -227,30 +205,30 @@ namespace GoVehiculos.API.Services
 
         private static string? ValidarCamposCreate(MantenimientoCreateDTO dto)
         {
-            if (string.IsNullOrWhiteSpace(dto.Tipo))        return "El tipo de mantenimiento es obligatorio.";
+            if (string.IsNullOrWhiteSpace(dto.Tipo)) return "El tipo de mantenimiento es obligatorio.";
             if (string.IsNullOrWhiteSpace(dto.Descripcion)) return "La descripción es obligatoria.";
-            if (string.IsNullOrWhiteSpace(dto.Prioridad))   return "La prioridad es obligatoria.";
-            if (dto.FechaProgramada == null)                 return "La fecha programada es obligatoria.";
+            if (string.IsNullOrWhiteSpace(dto.Prioridad)) return "La prioridad es obligatoria.";
+            if (dto.FechaProgramada == null) return "La fecha programada es obligatoria.";
             if (dto.FechaProgramada < DateOnly.FromDateTime(DateTime.Today))
-                                                             return "La fecha programada no puede ser anterior a hoy.";
-            if (dto.EmpleadoId <= 0)                        return "El empleado asignado es obligatorio. Debe seleccionar un empleado válido.";
+                return "La fecha programada no puede ser anterior a hoy.";
+            if (dto.EmpleadoId <= 0) return "El empleado asignado es obligatorio. Debe seleccionar un empleado válido.";
             return null;
         }
 
         private static string? ValidarCamposHabilitar(HabilitarVehiculoSocioDTO dto)
         {
-            if (string.IsNullOrWhiteSpace(dto.Tipo))        return "El tipo es obligatorio.";
+            if (string.IsNullOrWhiteSpace(dto.Tipo)) return "El tipo es obligatorio.";
             if (string.IsNullOrWhiteSpace(dto.Descripcion)) return "La descripción es obligatoria.";
-            if (dto.FechaRealizacion == default)            return "La fecha de realización es obligatoria.";
+            if (dto.FechaRealizacion == default) return "La fecha de realización es obligatoria.";
             return null;
         }
 
         private static string? ValidarCamposFinalizar(MantenimientoFinalizarDTO dto)
         {
-            if (string.IsNullOrWhiteSpace(dto.Descripcion))  return "La descripción es obligatoria.";
+            if (string.IsNullOrWhiteSpace(dto.Descripcion)) return "La descripción es obligatoria.";
             if (string.IsNullOrWhiteSpace(dto.RealizadoPor)) return "Debe indicar quién realizó el trabajo.";
-            if (dto.FechaRealizacion == default)             return "La fecha de realización es obligatoria.";
-            if (dto.Costo < 0)                               return "El costo no puede ser negativo.";
+            if (dto.FechaRealizacion == default) return "La fecha de realización es obligatoria.";
+            if (dto.Costo < 0) return "El costo no puede ser negativo.";
             return null;
         }
 
@@ -266,17 +244,17 @@ namespace GoVehiculos.API.Services
 
         private static Mantenimiento CrearRegistroSocioDesdeDTO(HabilitarVehiculoSocioDTO dto) => new()
         {
-            VehiculoId       = dto.VehiculoId,
-            EmpleadoId       = null,
-            Tipo             = dto.Tipo,
-            Descripcion      = dto.Descripcion,
-            Estado           = "finalizado",
-            Prioridad        = dto.Prioridad,
-            FechaProgramada  = null,
+            VehiculoId = dto.VehiculoId,
+            EmpleadoId = null,
+            Tipo = dto.Tipo,
+            Descripcion = dto.Descripcion,
+            Estado = "finalizado",
+            Prioridad = dto.Prioridad,
+            FechaProgramada = null,
             FechaRealizacion = dto.FechaRealizacion,
-            Costo            = 0,
-            RealizadoPor     = "A cargo del Socio",
-            Disponibilizado  = true
+            Costo = 0,
+            RealizadoPor = "A cargo del Socio",
+            Disponibilizado = true
         };
 
         // ================================================================
@@ -285,25 +263,25 @@ namespace GoVehiculos.API.Services
 
         private static MantenimientoResponseDTO ToResponseDTO(Mantenimiento m) => new()
         {
-            IdMantenimiento  = m.IdMantenimiento,
-            VehiculoId       = m.VehiculoId,
-            VehiculoPatente  = m.Vehiculo?.Patente               ?? string.Empty,
-            VehiculoMarca    = m.Vehiculo?.Modelo?.Marca?.Nombre  ?? string.Empty,
-            VehiculoModelo   = m.Vehiculo?.Modelo?.Nombre         ?? string.Empty,
-            VehiculoEstado   = m.Vehiculo?.Estado                ?? string.Empty,
-            EmpleadoId       = m.EmpleadoId,
-            EmpleadoNombre   = m.Empleado != null
+            IdMantenimiento = m.IdMantenimiento,
+            VehiculoId = m.VehiculoId,
+            VehiculoPatente = m.Vehiculo?.Patente ?? string.Empty,
+            VehiculoMarca = m.Vehiculo?.Modelo?.Marca?.Nombre ?? string.Empty,
+            VehiculoModelo = m.Vehiculo?.Modelo?.Nombre ?? string.Empty,
+            VehiculoEstado = m.Vehiculo?.Estado ?? string.Empty,
+            EmpleadoId = m.EmpleadoId,
+            EmpleadoNombre = m.Empleado != null
                                  ? $"{m.Empleado.Nombre} {m.Empleado.Apellido}"
                                  : null,
-            Tipo             = m.Tipo,
-            Descripcion      = m.Descripcion,
-            Estado           = m.Estado,
-            Prioridad        = m.Prioridad,
-            FechaProgramada  = m.FechaProgramada,
+            Tipo = m.Tipo,
+            Descripcion = m.Descripcion,
+            Estado = m.Estado,
+            Prioridad = m.Prioridad,
+            FechaProgramada = m.FechaProgramada,
             FechaRealizacion = m.FechaRealizacion,
-            Costo            = m.Costo,
-            RealizadoPor     = m.RealizadoPor,
-            Disponibilizado  = m.Disponibilizado,
+            Costo = m.Costo,
+            RealizadoPor = m.RealizadoPor,
+            Disponibilizado = m.Disponibilizado,
         };
     }
 }
