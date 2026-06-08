@@ -5,21 +5,27 @@ using GoVehiculos.API.Services;
 using GoVehiculos.Tests.Helpers;
 using Moq;
 
-namespace GoVehiculos.Tests.Services.MantenimientoServiceTests;
+namespace GoVehiculos.Tests.Services;
 
 /// <summary>
 /// Tests unitarios para la ESTRATEGIA "finalizar" dentro de:
 ///   MantenimientoService.EjecutarAccionAsync(id, empleadoId, "finalizar", contexto)
 ///     → Task&lt;(bool exito, string mensaje)&gt;
 ///
-/// FinalizarStrategy (NecesitaVehiculo = true):
-///   - Requiere EmpleadoId == el empleado que finaliza
-///   - Requiere estado == "iniciado"
-///   - FechaRealizacion no puede ser anterior a FechaProgramada
-///   - Descripcion, RealizadoPor: obligatorios
-///   - Costo: no puede ser negativo
-///   - Contexto tipado como MantenimientoFinalizarDTO (null → error)
-///   - Si todo ok → estado = "finalizado", vehiculo.EstadoMecanico = "bueno"
+/// Casos cubiertos (alineados con planilla de pruebas):
+///   EF01 — Todos los datos válidos
+///   EF05 — Empleado que ejecuta no es el dueño de la orden
+///   EF06 — Estado del mantenimiento es "pendiente"
+///   EF07 — Estado del mantenimiento es "finalizado"
+///   EF08 — Estado del mantenimiento es "cancelado"
+///   EF10 — Descripción vacía en el DTO
+///   EF11 — RealizadoPor vacío en el DTO
+///   EF12 — Costo negativo
+///   EF13 — FechaRealizacion anterior a FechaProgramada
+///   EF14 — FechaRealizacion igual a FechaProgramada (límite válido)
+///
+/// FinalizarStrategy (NecesitaVehiculo = true): usa GetByIdConVehiculoAsync.
+/// Ningún test toca Entity Framework ni base de datos real.
 /// </summary>
 public class MantenimientoService_EjecutarAccion_FinalizarStrategyTests
 {
@@ -35,222 +41,228 @@ public class MantenimientoService_EjecutarAccion_FinalizarStrategyTests
     }
 
     // ────────────────────────────────────────────────────────────────
-    // Camino feliz
+    // EF01 — Todos los datos válidos
     // ────────────────────────────────────────────────────────────────
 
     [Fact]
-    public async Task EstadoIniciado_DatosValidos_RetornaTrue()
+    public async Task EF01_TodosLosDatosValidos_RetornaExitoYMensajeCorrecto()
     {
         // Arrange
         const int empleadoId = 2;
-        // FechaProgramada en el pasado para que FechaRealizacion = hoy sea válida
+
+        // FechaProgramada hace 3 días para que FechaRealizacion = hoy sea válida
         var mant = ModelBuilderMantenimiento.MantenimientoIniciado(
-            empleadoId: empleadoId, conVehiculo: true,
-            fechaProg: DateOnly.FromDateTime(DateTime.Today.AddDays(-3)));
-
-        _repoMock.Setup(r => r.GetByIdConVehiculoAsync(1)).ReturnsAsync(mant);
-        _repoMock.Setup(r => r.SaveChangesAsync()).Returns(Task.CompletedTask);
-
-        var contexto = ModelBuilderMantenimiento.FinalizarDTO();
-
-        // Act
-        var (exito, _) = await _sut.EjecutarAccionAsync(1, empleadoId, "finalizar", contexto);
-
-        // Assert
-        exito.Should().BeTrue();
-    }
-
-    [Fact]
-    public async Task Exito_MutaEstadoAFinalizado()
-    {
-        // Arrange
-        const int empleadoId = 2;
-        var mant = ModelBuilderMantenimiento.MantenimientoIniciado(
-            empleadoId: empleadoId, conVehiculo: true,
-            fechaProg: DateOnly.FromDateTime(DateTime.Today.AddDays(-3)));
-
-        _repoMock.Setup(r => r.GetByIdConVehiculoAsync(1)).ReturnsAsync(mant);
-        _repoMock.Setup(r => r.SaveChangesAsync()).Returns(Task.CompletedTask);
-
-        // Act
-        await _sut.EjecutarAccionAsync(1, empleadoId, "finalizar", ModelBuilderMantenimiento.FinalizarDTO());
-
-        // Assert
-        mant.Estado.Should().Be("finalizado");
-    }
-
-    [Fact]
-    public async Task Exito_MutaEstadoMecanicoDelVehiculoABueno()
-    {
-        // Arrange
-        const int empleadoId = 2;
-        var mant = ModelBuilderMantenimiento.MantenimientoIniciado(
-            empleadoId: empleadoId, conVehiculo: true,
-            fechaProg: DateOnly.FromDateTime(DateTime.Today.AddDays(-5)));
-
-        _repoMock.Setup(r => r.GetByIdConVehiculoAsync(1)).ReturnsAsync(mant);
-        _repoMock.Setup(r => r.SaveChangesAsync()).Returns(Task.CompletedTask);
-
-        // Act
-        await _sut.EjecutarAccionAsync(1, empleadoId, "finalizar", ModelBuilderMantenimiento.FinalizarDTO());
-
-        // Assert — FinalizarStrategy pone EstadoMecanico = "bueno"
-        mant.Vehiculo!.EstadoMecanico.Should().Be("bueno");
-    }
-
-    [Fact]
-    public async Task Exito_ActualizaCamposDelContexto()
-    {
-        // Arrange
-        const int empleadoId = 2;
-        var hoy  = DateOnly.FromDateTime(DateTime.Today);
-        var mant = ModelBuilderMantenimiento.MantenimientoIniciado(
-            empleadoId: empleadoId, conVehiculo: true,
-            fechaProg: hoy.AddDays(-2));
+            id:          1,
+            empleadoId:  empleadoId,
+            conVehiculo: true,
+            fechaProg:   DateOnly.FromDateTime(DateTime.Today.AddDays(-3)));
 
         _repoMock.Setup(r => r.GetByIdConVehiculoAsync(1)).ReturnsAsync(mant);
         _repoMock.Setup(r => r.SaveChangesAsync()).Returns(Task.CompletedTask);
 
         var contexto = ModelBuilderMantenimiento.FinalizarDTO(
-            descripcion:     "Frenos reemplazados",
-            realizadoPor:    "Taller XYZ",
-            costo:           4_500,
-            fechaRealizacion: hoy);
+            descripcion:      "Trabajo completado",
+            realizadoPor:     "Taller Sur",
+            costo:            2_000,
+            fechaRealizacion: DateOnly.FromDateTime(DateTime.Today));
 
         // Act
-        await _sut.EjecutarAccionAsync(1, empleadoId, "finalizar", contexto);
+        var (exito, mensaje) = await _sut.EjecutarAccionAsync(1, empleadoId, "finalizar", contexto);
 
         // Assert
-        mant.Descripcion.Should().Be("Frenos reemplazados");
-        mant.RealizadoPor.Should().Be("Taller XYZ");
-        mant.Costo.Should().Be(4_500);
-        mant.FechaRealizacion.Should().Be(hoy);
+        exito.Should().BeTrue();
+        mensaje.Should().Be("Mantenimiento finalizado correctamente.");
     }
 
     // ────────────────────────────────────────────────────────────────
-    // Permiso
+    // EF05 — Empleado que ejecuta no es el dueño de la orden
     // ────────────────────────────────────────────────────────────────
 
     [Fact]
-    public async Task EmpleadoDistinto_RetornaFalseConMensajePermiso()
+    public async Task EF05_EmpleadoNoEsDuenio_RetornaFalseConMensajePermiso()
     {
-        // Arrange
-        var mant = ModelBuilderMantenimiento.MantenimientoIniciado(empleadoId: 5, conVehiculo: true);
+        // Arrange — la orden le pertenece al empleado 5, pero quien intenta ejecutarla es el 99
+        var mant = ModelBuilderMantenimiento.MantenimientoIniciado(
+            empleadoId:  5,
+            conVehiculo: true);
+
         _repoMock.Setup(r => r.GetByIdConVehiculoAsync(1)).ReturnsAsync(mant);
 
+        var contexto = ModelBuilderMantenimiento.FinalizarDTO();
+
         // Act
-        var (exito, mensaje) = await _sut.EjecutarAccionAsync(
-            1, 99, "finalizar", ModelBuilderMantenimiento.FinalizarDTO());
+        var (exito, mensaje) = await _sut.EjecutarAccionAsync(1, 99, "finalizar", contexto);
 
         // Assert
         exito.Should().BeFalse();
-        mensaje.Should().Contain("permiso");
+        mensaje.Should().Be("No tenés permiso para operar este mantenimiento.");
     }
 
     // ────────────────────────────────────────────────────────────────
-    // Estado no permitido
+    // EF06 — Estado del mantenimiento es "pendiente"
     // ────────────────────────────────────────────────────────────────
 
-    [Theory]
-    [InlineData("pendiente")]
-    [InlineData("finalizado")]
-    [InlineData("cancelado")]
-    public async Task EstadoDistintoDeIniciado_RetornaFalse(string estado)
+    [Fact]
+    public async Task EF06_EstadoPendiente_RetornaFalseConMensajeEstado()
     {
         // Arrange
         const int empleadoId = 2;
         var mant = ModelBuilderMantenimiento.MantenimientoConVehiculo(
-            empleadoId: empleadoId, estadoMantenimiento: estado);
+            empleadoId:          empleadoId,
+            estadoMantenimiento: "pendiente");
 
         _repoMock.Setup(r => r.GetByIdConVehiculoAsync(1)).ReturnsAsync(mant);
 
         // Act
-        var (exito, _) = await _sut.EjecutarAccionAsync(
+        var (exito, mensaje) = await _sut.EjecutarAccionAsync(
             1, empleadoId, "finalizar", ModelBuilderMantenimiento.FinalizarDTO());
 
         // Assert
         exito.Should().BeFalse();
+        mensaje.Should().Be("El mantenimiento no puede finalizarse porque está en estado 'pendiente'.");
     }
 
     // ────────────────────────────────────────────────────────────────
-    // Validaciones del contexto (MantenimientoFinalizarDTO)
+    // EF07 — Estado del mantenimiento es "finalizado"
     // ────────────────────────────────────────────────────────────────
 
     [Fact]
-    public async Task ContextoNull_RetornaFalse()
+    public async Task EF07_EstadoFinalizado_RetornaFalseConMensajeEstado()
     {
         // Arrange
         const int empleadoId = 2;
-        var mant = ModelBuilderMantenimiento.MantenimientoIniciado(empleadoId: empleadoId, conVehiculo: true);
+        var mant = ModelBuilderMantenimiento.MantenimientoConVehiculo(
+            empleadoId:          empleadoId,
+            estadoMantenimiento: "finalizado");
+
         _repoMock.Setup(r => r.GetByIdConVehiculoAsync(1)).ReturnsAsync(mant);
 
         // Act
-        var (exito, _) = await _sut.EjecutarAccionAsync(1, empleadoId, "finalizar", null);
+        var (exito, mensaje) = await _sut.EjecutarAccionAsync(
+            1, empleadoId, "finalizar", ModelBuilderMantenimiento.FinalizarDTO());
 
         // Assert
         exito.Should().BeFalse();
+        mensaje.Should().Be("El mantenimiento no puede finalizarse porque está en estado 'finalizado'.");
     }
 
+    // ────────────────────────────────────────────────────────────────
+    // EF08 — Estado del mantenimiento es "cancelado"
+    // ────────────────────────────────────────────────────────────────
+
     [Fact]
-    public async Task DescripcionVacia_RetornaFalse()
+    public async Task EF08_EstadoCancelado_RetornaFalseConMensajeEstado()
     {
         // Arrange
         const int empleadoId = 2;
-        var mant = ModelBuilderMantenimiento.MantenimientoIniciado(empleadoId: empleadoId, conVehiculo: true);
-        mant.FechaProgramada = null;
+        var mant = ModelBuilderMantenimiento.MantenimientoConVehiculo(
+            empleadoId:          empleadoId,
+            estadoMantenimiento: "cancelado");
+
         _repoMock.Setup(r => r.GetByIdConVehiculoAsync(1)).ReturnsAsync(mant);
 
         // Act
-        var (exito, _) = await _sut.EjecutarAccionAsync(
-            1, empleadoId, "finalizar", ModelBuilderMantenimiento.FinalizarDTO(descripcion: ""));
+        var (exito, mensaje) = await _sut.EjecutarAccionAsync(
+            1, empleadoId, "finalizar", ModelBuilderMantenimiento.FinalizarDTO());
 
         // Assert
         exito.Should().BeFalse();
+        mensaje.Should().Be("El mantenimiento no puede finalizarse porque está en estado 'cancelado'.");
     }
 
-    [Fact]
-    public async Task RealizadoPorVacio_RetornaFalse()
-    {
-        // Arrange
-        const int empleadoId = 2;
-        var mant = ModelBuilderMantenimiento.MantenimientoIniciado(empleadoId: empleadoId, conVehiculo: true);
-        mant.FechaProgramada = null;
-        _repoMock.Setup(r => r.GetByIdConVehiculoAsync(1)).ReturnsAsync(mant);
-
-        // Act
-        var (exito, _) = await _sut.EjecutarAccionAsync(
-            1, empleadoId, "finalizar", ModelBuilderMantenimiento.FinalizarDTO(realizadoPor: ""));
-
-        // Assert
-        exito.Should().BeFalse();
-    }
+    // ────────────────────────────────────────────────────────────────
+    // EF10 — Descripción vacía en el DTO
+    // ────────────────────────────────────────────────────────────────
 
     [Fact]
-    public async Task CostoNegativo_RetornaFalse()
-    {
-        // Arrange
-        const int empleadoId = 2;
-        var mant = ModelBuilderMantenimiento.MantenimientoIniciado(empleadoId: empleadoId, conVehiculo: true);
-        mant.FechaProgramada = null;
-        _repoMock.Setup(r => r.GetByIdConVehiculoAsync(1)).ReturnsAsync(mant);
-
-        // Act
-        var (exito, _) = await _sut.EjecutarAccionAsync(
-            1, empleadoId, "finalizar", ModelBuilderMantenimiento.FinalizarDTO(costo: -1));
-
-        // Assert
-        exito.Should().BeFalse();
-    }
-
-    [Fact]
-    public async Task FechaRealizacionAnteriorAFechaProgramada_RetornaFalseConMensajeAnterior()
+    public async Task EF10_DescripcionVacia_RetornaFalseConMensajeObligatorio()
     {
         // Arrange
         const int empleadoId = 2;
         var mant = ModelBuilderMantenimiento.MantenimientoIniciado(
-            empleadoId: empleadoId, conVehiculo: true,
-            // FechaProgramada = dentro de 5 días → FechaRealizacion hoy es anterior
-            fechaProg: DateOnly.FromDateTime(DateTime.Today.AddDays(5)));
+            empleadoId:  empleadoId,
+            conVehiculo: true);
+        mant.FechaProgramada = null;
+
+        _repoMock.Setup(r => r.GetByIdConVehiculoAsync(1)).ReturnsAsync(mant);
+
+        // Act
+        var (exito, mensaje) = await _sut.EjecutarAccionAsync(
+            1, empleadoId, "finalizar",
+            ModelBuilderMantenimiento.FinalizarDTO(descripcion: ""));
+
+        // Assert
+        exito.Should().BeFalse();
+        mensaje.Should().Be("La descripción es obligatoria.");
+    }
+
+    // ────────────────────────────────────────────────────────────────
+    // EF11 — RealizadoPor vacío en el DTO
+    // ────────────────────────────────────────────────────────────────
+
+    [Fact]
+    public async Task EF11_RealizadoPorVacio_RetornaFalseConMensajeObligatorio()
+    {
+        // Arrange
+        const int empleadoId = 2;
+        var mant = ModelBuilderMantenimiento.MantenimientoIniciado(
+            empleadoId:  empleadoId,
+            conVehiculo: true);
+        mant.FechaProgramada = null;
+
+        _repoMock.Setup(r => r.GetByIdConVehiculoAsync(1)).ReturnsAsync(mant);
+
+        // Act
+        var (exito, mensaje) = await _sut.EjecutarAccionAsync(
+            1, empleadoId, "finalizar",
+            ModelBuilderMantenimiento.FinalizarDTO(realizadoPor: ""));
+
+        // Assert
+        exito.Should().BeFalse();
+        mensaje.Should().Be("Debe indicar quién realizó el trabajo.");
+    }
+
+    // ────────────────────────────────────────────────────────────────
+    // EF12 — Costo negativo
+    // ────────────────────────────────────────────────────────────────
+
+    [Fact]
+    public async Task EF12_CostoNegativo_RetornaFalseConMensajeCosto()
+    {
+        // Arrange
+        const int empleadoId = 2;
+        var mant = ModelBuilderMantenimiento.MantenimientoIniciado(
+            empleadoId:  empleadoId,
+            conVehiculo: true);
+        mant.FechaProgramada = null;
+
+        _repoMock.Setup(r => r.GetByIdConVehiculoAsync(1)).ReturnsAsync(mant);
+
+        // Act
+        var (exito, mensaje) = await _sut.EjecutarAccionAsync(
+            1, empleadoId, "finalizar",
+            ModelBuilderMantenimiento.FinalizarDTO(costo: -1));
+
+        // Assert
+        exito.Should().BeFalse();
+        mensaje.Should().Be("El costo no puede ser negativo.");
+    }
+
+    // ────────────────────────────────────────────────────────────────
+    // EF13 — FechaRealizacion anterior a FechaProgramada
+    // ────────────────────────────────────────────────────────────────
+
+    [Fact]
+    public async Task EF13_FechaRealizacionAnteriorAFechaProgramada_RetornaFalseConMensajeFecha()
+    {
+        // Arrange
+        const int empleadoId = 2;
+
+        // FechaProgramada dentro de 5 días → FechaRealizacion hoy es anterior
+        var mant = ModelBuilderMantenimiento.MantenimientoIniciado(
+            empleadoId:  empleadoId,
+            conVehiculo: true,
+            fechaProg:   DateOnly.FromDateTime(DateTime.Today.AddDays(5)));
 
         _repoMock.Setup(r => r.GetByIdConVehiculoAsync(1)).ReturnsAsync(mant);
 
@@ -262,18 +274,24 @@ public class MantenimientoService_EjecutarAccion_FinalizarStrategyTests
 
         // Assert
         exito.Should().BeFalse();
-        mensaje.Should().Contain("anterior");
+        mensaje.Should().Contain("La fecha de realización no puede ser anterior a la fecha programada");
     }
 
+    // ────────────────────────────────────────────────────────────────
+    // EF14 — FechaRealizacion igual a FechaProgramada (límite válido)
+    // ────────────────────────────────────────────────────────────────
+
     [Fact]
-    public async Task FechaRealizacionIgualAFechaProgramada_EsValido()
+    public async Task EF14_FechaRealizacionIgualAFechaProgramada_EsValidaYRetornaExito()
     {
         // Arrange
         const int empleadoId = 2;
         var fechaProg = DateOnly.FromDateTime(DateTime.Today);
 
         var mant = ModelBuilderMantenimiento.MantenimientoIniciado(
-            empleadoId: empleadoId, conVehiculo: true, fechaProg: fechaProg);
+            empleadoId:  empleadoId,
+            conVehiculo: true,
+            fechaProg:   fechaProg);
 
         _repoMock.Setup(r => r.GetByIdConVehiculoAsync(1)).ReturnsAsync(mant);
         _repoMock.Setup(r => r.SaveChangesAsync()).Returns(Task.CompletedTask);
@@ -282,9 +300,10 @@ public class MantenimientoService_EjecutarAccion_FinalizarStrategyTests
         var contexto = ModelBuilderMantenimiento.FinalizarDTO(fechaRealizacion: fechaProg);
 
         // Act
-        var (exito, _) = await _sut.EjecutarAccionAsync(1, empleadoId, "finalizar", contexto);
+        var (exito, mensaje) = await _sut.EjecutarAccionAsync(1, empleadoId, "finalizar", contexto);
 
         // Assert
         exito.Should().BeTrue();
+        mensaje.Should().Be("Mantenimiento finalizado correctamente.");
     }
 }

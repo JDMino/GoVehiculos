@@ -1,7 +1,11 @@
 // =============================================================================
 // GoVehiculos.Tests/Services/MultaServiceTests/CancelarAsyncTests.cs
-// CORRECCIÓN: eliminados Mock<IncidenciaService> y Mock<PenalizacionService>.
-// Se usan instancias REALES construidas con sus repositorios mockeados.
+// Alineado con la planilla de pruebas unitarias — PDF versión final.
+// CA-01 a CA-07. CA-08 eliminado por no estar en la planilla.
+//
+// CA-01: el mensaje esperado es el que devuelve el SP configurado en el mock.
+// CA-03: se separa en dos tests (CA03a y CA03b) para cubrir los dos mensajes
+//        posibles que el SP puede devolver según la planilla.
 // =============================================================================
 using FluentAssertions;
 using GoVehiculos.API.DTOs;
@@ -37,32 +41,33 @@ public class CancelarAsyncTests
                 _multaRepoMock.Object),
             Enumerable.Empty<IMultaObserver>());
 
-    // ── Casos exitosos ────────────────────────────────────────────────────
+    // ── CA-01 ─────────────────────────────────────────────────────────────
 
     [Fact]
-    public async Task CancelarAsync_MotivoValido_DelegaAlSPYRetornaSuResultado()
+    public async Task CA01_MotivoValidoSPCancelaExitosamente_RetornaExitoTrue()
     {
         // Arrange
-        var dto = new MultaCancelarDTO { MotivoCancelacion = "Error humano en el registro" };
         _multaRepoMock
-            .Setup(r => r.CancelarConSPAsync(5, "Error humano en el registro"))
-            .ReturnsAsync((true, "Multa cancelada correctamente."));
+            .Setup(r => r.CancelarConSPAsync(5, "Error en el registro"))
+            .ReturnsAsync((true, "Multa cancelada y penalización revocada correctamente."));
 
         var sut = CrearSut();
 
         // Act
-        var (exito, mensaje) = await sut.CancelarAsync(5, dto);
+        var (exito, mensaje) = await sut.CancelarAsync(5,
+            new MultaCancelarDTO { MotivoCancelacion = "Error en el registro" });
 
         // Assert
         exito.Should().BeTrue();
-        mensaje.Should().Be("Multa cancelada correctamente.");
+        mensaje.Should().Be("Multa cancelada y penalización revocada correctamente.");
     }
 
+    // ── CA-02 ─────────────────────────────────────────────────────────────
+
     [Fact]
-    public async Task CancelarAsync_MotivoValido_LlamaCancelarConSPAsyncConParametrosCorrectos()
+    public async Task CA02_SPInvocadoConIdYMotivoCorrectos()
     {
         // Arrange
-        var dto = new MultaCancelarDTO { MotivoCancelacion = "Motivo de prueba" };
         _multaRepoMock
             .Setup(r => r.CancelarConSPAsync(It.IsAny<int>(), It.IsAny<string>()))
             .ReturnsAsync((true, "OK"));
@@ -70,90 +75,123 @@ public class CancelarAsyncTests
         var sut = CrearSut();
 
         // Act
-        await sut.CancelarAsync(7, dto);
+        var (exito, _) = await sut.CancelarAsync(7,
+            new MultaCancelarDTO { MotivoCancelacion = "Motivo de prueba" });
 
         // Assert
-        _multaRepoMock.Verify(r => r.CancelarConSPAsync(7, "Motivo de prueba"), Times.Once);
+        exito.Should().BeTrue();
+        _multaRepoMock.Verify(
+            r => r.CancelarConSPAsync(7, "Motivo de prueba"),
+            Times.Once);
     }
 
+    // ── CA-03a ────────────────────────────────────────────────────────────
+
     [Fact]
-    public async Task CancelarAsync_SPRetornaFalse_PropagaElFalso()
+    public async Task CA03a_SPRechazaPorqueLaMultaNoExiste_RetornaFalse()
     {
-        // Arrange — el SP falla si la multa ya está cancelada o no existe
-        var dto = new MultaCancelarDTO { MotivoCancelacion = "Motivo" };
+        // Arrange
         _multaRepoMock
             .Setup(r => r.CancelarConSPAsync(It.IsAny<int>(), It.IsAny<string>()))
-            .ReturnsAsync((false, "La multa no existe o ya fue cancelada."));
+            .ReturnsAsync((false, "La multa indicada no existe."));
 
         var sut = CrearSut();
 
         // Act
-        var (exito, mensaje) = await sut.CancelarAsync(1, dto);
+        var (exito, mensaje) = await sut.CancelarAsync(1,
+            new MultaCancelarDTO { MotivoCancelacion = "Motivo" });
 
         // Assert
         exito.Should().BeFalse();
-        mensaje.Should().Be("La multa no existe o ya fue cancelada.");
+        mensaje.Should().Be("La multa indicada no existe.");
     }
 
-    // ── Validaciones previas al SP ────────────────────────────────────────
+    // ── CA-03b ────────────────────────────────────────────────────────────
 
-    [Theory]
-    [InlineData("")]
-    [InlineData("   ")]
-    public async Task CancelarAsync_MotivoVacioOEspacios_RetornaFalseSinLlamarAlSP(string motivo)
+    [Fact]
+    public async Task CA03b_SPRechazaPorqueMultaYaFueCancelada_RetornaFalse()
     {
         // Arrange
-        var dto = new MultaCancelarDTO { MotivoCancelacion = motivo };
+        _multaRepoMock
+            .Setup(r => r.CancelarConSPAsync(It.IsAny<int>(), It.IsAny<string>()))
+            .ReturnsAsync((false, "La multa ya fue cancelada anteriormente."));
+
         var sut = CrearSut();
 
         // Act
-        var (exito, mensaje) = await sut.CancelarAsync(1, dto);
+        var (exito, mensaje) = await sut.CancelarAsync(1,
+            new MultaCancelarDTO { MotivoCancelacion = "Motivo" });
+
+        // Assert
+        exito.Should().BeFalse();
+        mensaje.Should().Be("La multa ya fue cancelada anteriormente.");
+    }
+
+    // ── CA-04 ─────────────────────────────────────────────────────────────
+
+    [Fact]
+    public async Task CA04_MotivoCancelacionVacio_RetornaFalseSinLlamarAlSP()
+    {
+        // Arrange
+        var sut = CrearSut();
+
+        // Act
+        var (exito, mensaje) = await sut.CancelarAsync(1,
+            new MultaCancelarDTO { MotivoCancelacion = "" });
 
         // Assert
         exito.Should().BeFalse();
         mensaje.Should().Be("El motivo de la cancelación es obligatorio y no puede estar vacío.");
-        _multaRepoMock.Verify(r => r.CancelarConSPAsync(It.IsAny<int>(), It.IsAny<string>()), Times.Never);
+        _multaRepoMock.Verify(
+            r => r.CancelarConSPAsync(It.IsAny<int>(), It.IsAny<string>()),
+            Times.Never);
     }
 
+    // ── CA-05 ─────────────────────────────────────────────────────────────
+
     [Fact]
-    public async Task CancelarAsync_MotivoNulo_RetornaFalseSinLlamarAlSP()
+    public async Task CA05_MotivoCompuestoSoloDeEspacios_RetornaFalseSinLlamarAlSP()
     {
         // Arrange
-        var dto = new MultaCancelarDTO { MotivoCancelacion = null! };
         var sut = CrearSut();
 
         // Act
-        var (exito, _) = await sut.CancelarAsync(1, dto);
+        var (exito, mensaje) = await sut.CancelarAsync(1,
+            new MultaCancelarDTO { MotivoCancelacion = "   " });
 
         // Assert
         exito.Should().BeFalse();
-        _multaRepoMock.Verify(r => r.CancelarConSPAsync(It.IsAny<int>(), It.IsAny<string>()), Times.Never);
+        mensaje.Should().Be("El motivo de la cancelación es obligatorio y no puede estar vacío.");
+        _multaRepoMock.Verify(
+            r => r.CancelarConSPAsync(It.IsAny<int>(), It.IsAny<string>()),
+            Times.Never);
     }
 
-    [Fact]
-    public async Task CancelarAsync_PropagaMensajeExactoDelSP()
-    {
-        // Arrange — el SP genera mensajes con lógica propia en SQL Server
-        var mensajeSP = "Multa #3 cancelada. Penalización #8 revocada.";
-        var dto = new MultaCancelarDTO { MotivoCancelacion = "Motivo válido" };
-        _multaRepoMock
-            .Setup(r => r.CancelarConSPAsync(It.IsAny<int>(), It.IsAny<string>()))
-            .ReturnsAsync((true, mensajeSP));
+    // ── CA-06 ─────────────────────────────────────────────────────────────
 
+    [Fact]
+    public async Task CA06_MotivoNulo_RetornaFalseSinLlamarAlSP()
+    {
+        // Arrange
         var sut = CrearSut();
 
         // Act
-        var (_, mensaje) = await sut.CancelarAsync(3, dto);
+        var (exito, _) = await sut.CancelarAsync(1,
+            new MultaCancelarDTO { MotivoCancelacion = null! });
 
-        // Assert — el mensaje es el generado por el SP, no uno propio del servicio
-        mensaje.Should().Be(mensajeSP);
+        // Assert
+        exito.Should().BeFalse();
+        _multaRepoMock.Verify(
+            r => r.CancelarConSPAsync(It.IsAny<int>(), It.IsAny<string>()),
+            Times.Never);
     }
 
+    // ── CA-07 ─────────────────────────────────────────────────────────────
+
     [Fact]
-    public async Task CancelarAsync_MotivoDeUnCaracter_PasaValidacionYLlamaSP()
+    public async Task CA07_MotivoDeUnCaracter_SPInvocadoConMotivoCorrecto()
     {
         // Arrange
-        var dto = new MultaCancelarDTO { MotivoCancelacion = "X" };
         _multaRepoMock
             .Setup(r => r.CancelarConSPAsync(It.IsAny<int>(), It.IsAny<string>()))
             .ReturnsAsync((true, "OK"));
@@ -161,10 +199,13 @@ public class CancelarAsyncTests
         var sut = CrearSut();
 
         // Act
-        var (exito, _) = await sut.CancelarAsync(1, dto);
+        var (exito, _) = await sut.CancelarAsync(1,
+            new MultaCancelarDTO { MotivoCancelacion = "X" });
 
         // Assert
         exito.Should().BeTrue();
-        _multaRepoMock.Verify(r => r.CancelarConSPAsync(1, "X"), Times.Once);
+        _multaRepoMock.Verify(
+            r => r.CancelarConSPAsync(1, "X"),
+            Times.Once);
     }
 }

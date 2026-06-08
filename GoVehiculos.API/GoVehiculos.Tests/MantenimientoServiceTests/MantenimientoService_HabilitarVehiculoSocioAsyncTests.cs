@@ -5,20 +5,24 @@ using GoVehiculos.API.Services;
 using GoVehiculos.Tests.Helpers;
 using Moq;
 
-namespace GoVehiculos.Tests.Services.MantenimientoServiceTests;
+namespace GoVehiculos.Tests.Services;
 
 /// <summary>
 /// Tests unitarios para:
 ///   MantenimientoService.HabilitarVehiculoSocioAsync(HabilitarVehiculoSocioDTO dto)
 ///     → Task&lt;(bool exito, string mensaje, MantenimientoResponseDTO? dto)&gt;
 ///
-/// Flujo real del service:
-///   1. ValidarCamposHabilitar (validaciones locales)
-///   2. vehiculoRepo.GetByIdSimpleAsync → debe existir
-///   3. vehiculo.MantenimientoACargoDe == "socio"
-///   4. vehiculo.Estado == "fuera_de_servicio"
-///   5. repo.AddAsync + repo.SaveChangesAsync
-///   6. GetByIdAsync para construir el DTO resultado
+/// Casos cubiertos (alineados con planilla de pruebas):
+///   HV01 — Datos válidos, vehículo de socio fuera de servicio
+///   HV05 — Tipo vacío
+///   HV06 — Descripción vacía
+///   HV07 — FechaRealizacion con valor default
+///   HV08 — Vehículo no encontrado en la base de datos
+///   HV09 — Vehículo no es de socio (mantenimientoACargoDe = "empresa")
+///   HV10 — Vehículo de socio en estado "disponible"
+///   HV11 — Vehículo de socio en estado "mantenimiento"
+///   HV12 — Vehículo de socio en estado "en_uso"
+///   HV13 — Vehículo de socio en estado "reservado"
 ///
 /// Ningún test toca Entity Framework ni base de datos real.
 /// </summary>
@@ -36,7 +40,7 @@ public class MantenimientoService_HabilitarVehiculoSocioAsyncTests
     }
 
     // ────────────────────────────────────────────────────────────────
-    // Helper — configura el repo para persistencia y recarga exitosa
+    // Helper — configura persistencia y recarga exitosa
     // ────────────────────────────────────────────────────────────────
 
     private void ConfigurarPersistenciaExitosa()
@@ -49,86 +53,40 @@ public class MantenimientoService_HabilitarVehiculoSocioAsyncTests
     }
 
     // ────────────────────────────────────────────────────────────────
-    // Camino feliz
+    // HV01 — Datos válidos, vehículo de socio fuera de servicio
     // ────────────────────────────────────────────────────────────────
 
     [Fact]
-    public async Task DatosValidos_VehiculoSocioFueraDeServicio_RetornaExitoTrue()
+    public async Task HV01_DatosValidosVehiculoSocioFueraDeServicio_RetornaExitoYMensajeCorrecto()
     {
         // Arrange
-        var vehiculo = ModelBuilderMantenimiento.VehiculoSocioFueraDeServicio();
-        _vehiculoRepoMock.Setup(r => r.GetByIdSimpleAsync(vehiculo.IdVehiculo)).ReturnsAsync(vehiculo);
+        var vehiculo = ModelBuilderMantenimiento.VehiculoSocioFueraDeServicio(id: 1);
+        _vehiculoRepoMock
+            .Setup(r => r.GetByIdSimpleAsync(vehiculo.IdVehiculo))
+            .ReturnsAsync(vehiculo);
         ConfigurarPersistenciaExitosa();
 
-        var dto = ModelBuilderMantenimiento.HabilitarSocioDTO(vehiculoId: vehiculo.IdVehiculo);
+        var dto = ModelBuilderMantenimiento.HabilitarSocioDTO(
+            vehiculoId:       1,
+            tipo:             "preventivo",
+            descripcion:      "Revisión general",
+            fechaRealizacion: DateOnly.FromDateTime(DateTime.Today));
 
         // Act
         var (exito, mensaje, resultado) = await _sut.HabilitarVehiculoSocioAsync(dto);
 
         // Assert
         exito.Should().BeTrue();
-        mensaje.Should().Contain("habilitado");
+        mensaje.Should().Be("Vehículo habilitado correctamente.");
         resultado.Should().NotBeNull();
     }
 
-    [Fact]
-    public async Task DatosValidos_MutaVehiculoEstadoADisponible()
-    {
-        // Arrange
-        var vehiculo = ModelBuilderMantenimiento.VehiculoSocioFueraDeServicio();
-        _vehiculoRepoMock.Setup(r => r.GetByIdSimpleAsync(vehiculo.IdVehiculo)).ReturnsAsync(vehiculo);
-        ConfigurarPersistenciaExitosa();
-
-        var dto = ModelBuilderMantenimiento.HabilitarSocioDTO(vehiculoId: vehiculo.IdVehiculo);
-
-        // Act
-        await _sut.HabilitarVehiculoSocioAsync(dto);
-
-        // Assert — el service muta el estado directamente en memoria
-        vehiculo.Estado.Should().Be("disponible");
-    }
-
-    [Fact]
-    public async Task DatosValidos_MutaVehiculoEstadoMecanicoABueno()
-    {
-        // Arrange
-        var vehiculo = ModelBuilderMantenimiento.VehiculoSocioFueraDeServicio();
-        _vehiculoRepoMock.Setup(r => r.GetByIdSimpleAsync(vehiculo.IdVehiculo)).ReturnsAsync(vehiculo);
-        ConfigurarPersistenciaExitosa();
-
-        var dto = ModelBuilderMantenimiento.HabilitarSocioDTO(vehiculoId: vehiculo.IdVehiculo);
-
-        // Act
-        await _sut.HabilitarVehiculoSocioAsync(dto);
-
-        // Assert
-        vehiculo.EstadoMecanico.Should().Be("bueno");
-    }
-
-    [Fact]
-    public async Task DatosValidos_InvocaAddYSaveChangesUnaVezCadaUno()
-    {
-        // Arrange
-        var vehiculo = ModelBuilderMantenimiento.VehiculoSocioFueraDeServicio();
-        _vehiculoRepoMock.Setup(r => r.GetByIdSimpleAsync(vehiculo.IdVehiculo)).ReturnsAsync(vehiculo);
-        ConfigurarPersistenciaExitosa();
-
-        var dto = ModelBuilderMantenimiento.HabilitarSocioDTO(vehiculoId: vehiculo.IdVehiculo);
-
-        // Act
-        await _sut.HabilitarVehiculoSocioAsync(dto);
-
-        // Assert
-        _repoMock.Verify(r => r.AddAsync(It.IsAny<Mantenimiento>()), Times.Once);
-        _repoMock.Verify(r => r.SaveChangesAsync(), Times.Once);
-    }
-
     // ────────────────────────────────────────────────────────────────
-    // Validaciones locales
+    // HV05 — Tipo vacío
     // ────────────────────────────────────────────────────────────────
 
     [Fact]
-    public async Task TipoVacio_RetornaFalseSinConsultarVehiculo()
+    public async Task HV05_TipoVacio_RetornaFalseConMensajeObligatorio()
     {
         // Arrange
         var dto = ModelBuilderMantenimiento.HabilitarSocioDTO(tipo: "");
@@ -138,113 +96,214 @@ public class MantenimientoService_HabilitarVehiculoSocioAsyncTests
 
         // Assert
         exito.Should().BeFalse();
-        mensaje.Should().NotBeEmpty();
+        mensaje.Should().Be("El tipo es obligatorio.");
         resultado.Should().BeNull();
         _vehiculoRepoMock.Verify(r => r.GetByIdSimpleAsync(It.IsAny<int>()), Times.Never);
     }
 
+    // ────────────────────────────────────────────────────────────────
+    // HV06 — Descripción vacía
+    // ────────────────────────────────────────────────────────────────
+
     [Fact]
-    public async Task DescripcionVacia_RetornaFalseSinConsultarVehiculo()
+    public async Task HV06_DescripcionVacia_RetornaFalseConMensajeObligatorio()
     {
         // Arrange
         var dto = ModelBuilderMantenimiento.HabilitarSocioDTO(descripcion: "");
 
         // Act
-        var (exito, _, resultado) = await _sut.HabilitarVehiculoSocioAsync(dto);
+        var (exito, mensaje, resultado) = await _sut.HabilitarVehiculoSocioAsync(dto);
 
         // Assert
         exito.Should().BeFalse();
+        mensaje.Should().Be("La descripción es obligatoria.");
         resultado.Should().BeNull();
         _vehiculoRepoMock.Verify(r => r.GetByIdSimpleAsync(It.IsAny<int>()), Times.Never);
     }
 
+    // ────────────────────────────────────────────────────────────────
+    // HV07 — FechaRealizacion con valor default (DateOnly)
+    // ────────────────────────────────────────────────────────────────
+
     [Fact]
-    public async Task FechaRealizacionDefault_RetornaFalse()
+    public async Task HV07_FechaRealizacionDefault_RetornaFalseConMensajeObligatorio()
     {
         // Arrange
         var dto = ModelBuilderMantenimiento.HabilitarSocioDTO(fechaRealizacion: default(DateOnly));
 
         // Act
-        var (exito, _, _) = await _sut.HabilitarVehiculoSocioAsync(dto);
+        var (exito, mensaje, resultado) = await _sut.HabilitarVehiculoSocioAsync(dto);
 
         // Assert
         exito.Should().BeFalse();
+        mensaje.Should().Be("La fecha de realización es obligatoria.");
+        resultado.Should().BeNull();
     }
 
     // ────────────────────────────────────────────────────────────────
-    // Vehículo no encontrado
+    // HV08 — Vehículo no encontrado
     // ────────────────────────────────────────────────────────────────
 
     [Fact]
-    public async Task VehiculoNoExiste_RetornaFalseConMensajeEncontrado()
+    public async Task HV08_VehiculoNoEncontrado_RetornaFalseConMensajeNoEncontrado()
     {
-        // Arrange
+        // Arrange — todos los campos del DTO son válidos, pero el repositorio devuelve null
         _vehiculoRepoMock
-            .Setup(r => r.GetByIdSimpleAsync(It.IsAny<int>()))
+            .Setup(r => r.GetByIdSimpleAsync(1))
             .ReturnsAsync((Vehiculo?)null);
 
-        var dto = ModelBuilderMantenimiento.HabilitarSocioDTO();
+        var dto = ModelBuilderMantenimiento.HabilitarSocioDTO(
+            vehiculoId:       1,
+            tipo:             "preventivo",
+            descripcion:      "Revisión general",
+            fechaRealizacion: DateOnly.FromDateTime(DateTime.Today));
 
         // Act
         var (exito, mensaje, resultado) = await _sut.HabilitarVehiculoSocioAsync(dto);
 
         // Assert
         exito.Should().BeFalse();
-        mensaje.Should().Contain("encontrado");
+        mensaje.Should().Be("Vehículo no encontrado.");
         resultado.Should().BeNull();
     }
 
     // ────────────────────────────────────────────────────────────────
-    // Vehículo no es de socio
+    // HV09 — Vehículo no es de socio (mantenimientoACargoDe = "empresa")
     // ────────────────────────────────────────────────────────────────
 
     [Fact]
-    public async Task VehiculoEsDeEmpresa_RetornaFalseConMensajeSocio()
+    public async Task HV09_VehiculoEsDeEmpresa_RetornaFalseConMensajeSocio()
     {
         // Arrange
         var vehiculo = ModelBuilderMantenimiento.Vehiculo(
+            id:                    1,
             estado:                "fuera_de_servicio",
-            mantenimientoACargoDe: "empresa");   // <-- no es socio
+            mantenimientoACargoDe: "empresa");
 
-        _vehiculoRepoMock.Setup(r => r.GetByIdSimpleAsync(vehiculo.IdVehiculo)).ReturnsAsync(vehiculo);
+        _vehiculoRepoMock
+            .Setup(r => r.GetByIdSimpleAsync(1))
+            .ReturnsAsync(vehiculo);
 
-        var dto = ModelBuilderMantenimiento.HabilitarSocioDTO(vehiculoId: vehiculo.IdVehiculo);
+        var dto = ModelBuilderMantenimiento.HabilitarSocioDTO(vehiculoId: 1);
 
         // Act
         var (exito, mensaje, resultado) = await _sut.HabilitarVehiculoSocioAsync(dto);
 
         // Assert
         exito.Should().BeFalse();
-        mensaje.Should().Contain("socio");
+        mensaje.Should().Be("Este flujo solo aplica a vehículos con mantenimiento a cargo del socio.");
         resultado.Should().BeNull();
     }
 
     // ────────────────────────────────────────────────────────────────
-    // Vehículo con estado incorrecto
+    // HV10 — Vehículo de socio en estado "disponible"
     // ────────────────────────────────────────────────────────────────
 
-    [Theory]
-    [InlineData("disponible")]
-    [InlineData("mantenimiento")]
-    [InlineData("en_uso")]
-    [InlineData("reservado")]
-    public async Task VehiculoNoEstaFueraDeServicio_RetornaFalseConMensajeFueraDeServicio(
-        string estadoVehiculo)
+    [Fact]
+    public async Task HV10_VehiculoSocioEnEstadoDisponible_RetornaFalseConMensajeFueraDeServicio()
     {
         // Arrange
         var vehiculo = ModelBuilderMantenimiento.Vehiculo(
-            estado:                estadoVehiculo,
+            id:                    1,
+            estado:                "disponible",
             mantenimientoACargoDe: "socio");
 
-        _vehiculoRepoMock.Setup(r => r.GetByIdSimpleAsync(vehiculo.IdVehiculo)).ReturnsAsync(vehiculo);
+        _vehiculoRepoMock
+            .Setup(r => r.GetByIdSimpleAsync(1))
+            .ReturnsAsync(vehiculo);
 
-        var dto = ModelBuilderMantenimiento.HabilitarSocioDTO(vehiculoId: vehiculo.IdVehiculo);
+        var dto = ModelBuilderMantenimiento.HabilitarSocioDTO(vehiculoId: 1);
 
         // Act
-        var (exito, mensaje, _) = await _sut.HabilitarVehiculoSocioAsync(dto);
+        var (exito, mensaje, resultado) = await _sut.HabilitarVehiculoSocioAsync(dto);
 
         // Assert
         exito.Should().BeFalse();
-        mensaje.Should().Contain("fuera de servicio");
+        mensaje.Should().Be("El vehículo debe estar en estado 'fuera de servicio' para poder habilitarlo.");
+        resultado.Should().BeNull();
+    }
+
+    // ────────────────────────────────────────────────────────────────
+    // HV11 — Vehículo de socio en estado "mantenimiento"
+    // ────────────────────────────────────────────────────────────────
+
+    [Fact]
+    public async Task HV11_VehiculoSocioEnEstadoMantenimiento_RetornaFalseConMensajeFueraDeServicio()
+    {
+        // Arrange
+        var vehiculo = ModelBuilderMantenimiento.Vehiculo(
+            id:                    1,
+            estado:                "mantenimiento",
+            mantenimientoACargoDe: "socio");
+
+        _vehiculoRepoMock
+            .Setup(r => r.GetByIdSimpleAsync(1))
+            .ReturnsAsync(vehiculo);
+
+        var dto = ModelBuilderMantenimiento.HabilitarSocioDTO(vehiculoId: 1);
+
+        // Act
+        var (exito, mensaje, resultado) = await _sut.HabilitarVehiculoSocioAsync(dto);
+
+        // Assert
+        exito.Should().BeFalse();
+        mensaje.Should().Be("El vehículo debe estar en estado 'fuera de servicio' para poder habilitarlo.");
+        resultado.Should().BeNull();
+    }
+
+    // ────────────────────────────────────────────────────────────────
+    // HV12 — Vehículo de socio en estado "en_uso"
+    // ────────────────────────────────────────────────────────────────
+
+    [Fact]
+    public async Task HV12_VehiculoSocioEnEstadoEnUso_RetornaFalseConMensajeFueraDeServicio()
+    {
+        // Arrange
+        var vehiculo = ModelBuilderMantenimiento.Vehiculo(
+            id:                    1,
+            estado:                "en_uso",
+            mantenimientoACargoDe: "socio");
+
+        _vehiculoRepoMock
+            .Setup(r => r.GetByIdSimpleAsync(1))
+            .ReturnsAsync(vehiculo);
+
+        var dto = ModelBuilderMantenimiento.HabilitarSocioDTO(vehiculoId: 1);
+
+        // Act
+        var (exito, mensaje, resultado) = await _sut.HabilitarVehiculoSocioAsync(dto);
+
+        // Assert
+        exito.Should().BeFalse();
+        mensaje.Should().Be("El vehículo debe estar en estado 'fuera de servicio' para poder habilitarlo.");
+        resultado.Should().BeNull();
+    }
+
+    // ────────────────────────────────────────────────────────────────
+    // HV13 — Vehículo de socio en estado "reservado"
+    // ────────────────────────────────────────────────────────────────
+
+    [Fact]
+    public async Task HV13_VehiculoSocioEnEstadoReservado_RetornaFalseConMensajeFueraDeServicio()
+    {
+        // Arrange
+        var vehiculo = ModelBuilderMantenimiento.Vehiculo(
+            id:                    1,
+            estado:                "reservado",
+            mantenimientoACargoDe: "socio");
+
+        _vehiculoRepoMock
+            .Setup(r => r.GetByIdSimpleAsync(1))
+            .ReturnsAsync(vehiculo);
+
+        var dto = ModelBuilderMantenimiento.HabilitarSocioDTO(vehiculoId: 1);
+
+        // Act
+        var (exito, mensaje, resultado) = await _sut.HabilitarVehiculoSocioAsync(dto);
+
+        // Assert
+        exito.Should().BeFalse();
+        mensaje.Should().Be("El vehículo debe estar en estado 'fuera de servicio' para poder habilitarlo.");
+        resultado.Should().BeNull();
     }
 }

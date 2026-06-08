@@ -1,19 +1,7 @@
 // =============================================================================
 // GoVehiculos.Tests/Services/MultaServiceTests/UpdateAsyncTests.cs
-//
-// CORRECCIÓN PROBLEMA 1: eliminados Mock<IncidenciaService> y Mock<PenalizacionService>.
-// Se usan instancias REALES construidas con sus repositorios mockeados.
-//
-// CORRECCIÓN PROBLEMA 2: el test UpdateAsync_IntentoCambiarEstadoACancelada_RetornaFalse
-// esperaba mensaje.Should().Contain("endpoint dedicado") pero el flujo real es:
-//
-//   UpdateAsync llama ValidarCamposUpdate(dto) PRIMERO.
-//   ValidarCamposUpdate comprueba si dto.Estado está en EstadosMultaEditables
-//   = ["pendiente", "pagada"].
-//   "cancelada" NO está → retorna "Estado inválido desde edición. Valores permitidos: pendiente, pagada."
-//   El método retorna ANTES de llegar al check explícito de dto.Estado == "cancelada".
-//
-// El test fue ajustado para validar el mensaje real que devuelve el servicio.
+// Alineado con la planilla de pruebas unitarias — PDF versión final.
+// UA-01 a UA-12. UA-13 y UA-14 eliminados por no estar en la planilla.
 // =============================================================================
 using FluentAssertions;
 using GoVehiculos.API.DTOs;
@@ -50,21 +38,10 @@ public class UpdateAsyncTests
                 _multaRepoMock.Object),
             Enumerable.Empty<IMultaObserver>());
 
-    private static MultaUpdateDTO DtoValido(
-        string  tipo   = "economica",
-        string  estado = "pendiente",
-        decimal monto  = 1000m) => new()
-    {
-        Tipo        = tipo,
-        Monto       = monto,
-        Descripcion = "Descripción actualizada",
-        Estado      = estado
-    };
-
-    // ── Casos exitosos ────────────────────────────────────────────────────
+    // ── UA-01 ─────────────────────────────────────────────────────────────
 
     [Fact]
-    public async Task UpdateAsync_DatosValidos_RetornaExitoTrue()
+    public async Task UA01_ActualizacionValidaMultaPendiente_RetornaExitoTrue()
     {
         // Arrange
         var multa = ModelBuilders.Multa(id: 1, estado: "pendiente");
@@ -74,61 +51,51 @@ public class UpdateAsyncTests
         var sut = CrearSut();
 
         // Act
-        var (exito, mensaje) = await sut.UpdateAsync(1, DtoValido());
+        var (exito, mensaje) = await sut.UpdateAsync(1, new MultaUpdateDTO
+        {
+            Tipo        = "economica",
+            Monto       = 3000m,
+            Descripcion = "Actualización",
+            Estado      = "pendiente"
+        });
 
         // Assert
         exito.Should().BeTrue();
         mensaje.Should().Be("Multa actualizada correctamente.");
     }
 
+    // ── UA-02 ─────────────────────────────────────────────────────────────
+
     [Fact]
-    public async Task UpdateAsync_DatosValidos_ActualizaLaEntidad()
+    public async Task UA02_CambioDeEstadoDePendienteAPagada_ActualizaEntidad()
     {
         // Arrange
         var multa = ModelBuilders.Multa(id: 1, estado: "pendiente", tipo: "economica", monto: 100m);
         _multaRepoMock.Setup(r => r.GetByIdSimpleAsync(1)).ReturnsAsync(multa);
         _multaRepoMock.Setup(r => r.SaveChangesAsync()).Returns(Task.CompletedTask);
 
-        var dto = new MultaUpdateDTO
+        var sut = CrearSut();
+
+        // Act
+        var (exito, _) = await sut.UpdateAsync(1, new MultaUpdateDTO
         {
             Tipo        = "administrativa",
-            Monto       = 2500m,
-            Descripcion = "Nueva descripción",
+            Monto       = 1500m,
+            Descripcion = "Nueva desc",
             Estado      = "pagada"
-        };
-        var sut = CrearSut();
-
-        // Act
-        await sut.UpdateAsync(1, dto);
+        });
 
         // Assert
+        exito.Should().BeTrue();
         multa.Tipo.Should().Be("administrativa");
-        multa.Monto.Should().Be(2500m);
+        multa.Monto.Should().Be(1500m);
         multa.Estado.Should().Be("pagada");
-        multa.Descripcion.Should().Be("Nueva descripción");
     }
+
+    // ── UA-03 ─────────────────────────────────────────────────────────────
 
     [Fact]
-    public async Task UpdateAsync_LlamaSaveChanges()
-    {
-        // Arrange
-        var multa = ModelBuilders.Multa(id: 1);
-        _multaRepoMock.Setup(r => r.GetByIdSimpleAsync(1)).ReturnsAsync(multa);
-        _multaRepoMock.Setup(r => r.SaveChangesAsync()).Returns(Task.CompletedTask);
-
-        var sut = CrearSut();
-
-        // Act
-        await sut.UpdateAsync(1, DtoValido());
-
-        // Assert
-        _multaRepoMock.Verify(r => r.SaveChangesAsync(), Times.Once);
-    }
-
-    [Theory]
-    [InlineData("pendiente")]
-    [InlineData("pagada")]
-    public async Task UpdateAsync_EstadosEditablesValidos_RetornaExitoTrue(string estado)
+    public async Task UA03_TipoMultaMixta_EsValido()
     {
         // Arrange
         var multa = ModelBuilders.Multa(id: 1, estado: "pendiente");
@@ -138,34 +105,47 @@ public class UpdateAsyncTests
         var sut = CrearSut();
 
         // Act
-        var (exito, _) = await sut.UpdateAsync(1, DtoValido(estado: estado));
+        var (exito, _) = await sut.UpdateAsync(1, new MultaUpdateDTO
+        {
+            Tipo        = "mixta",
+            Monto       = 2000m,
+            Descripcion = "X",
+            Estado      = "pendiente"
+        });
 
         // Assert
         exito.Should().BeTrue();
     }
 
-    // ── Casos de error ────────────────────────────────────────────────────
+    // ── UA-04 ─────────────────────────────────────────────────────────────
 
     [Fact]
-    public async Task UpdateAsync_MultaNoExiste_RetornaFalse()
+    public async Task UA04_MultaNoExiste_RetornaFalse()
     {
         // Arrange
         _multaRepoMock
-            .Setup(r => r.GetByIdSimpleAsync(It.IsAny<int>()))
+            .Setup(r => r.GetByIdSimpleAsync(999))
             .ReturnsAsync((Multa?)null);
 
         var sut = CrearSut();
 
         // Act
-        var (exito, mensaje) = await sut.UpdateAsync(999, DtoValido());
+        var (exito, mensaje) = await sut.UpdateAsync(999, new MultaUpdateDTO
+        {
+            Tipo   = "economica",
+            Monto  = 100m,
+            Estado = "pendiente"
+        });
 
         // Assert
         exito.Should().BeFalse();
         mensaje.Should().Be("Multa no encontrada.");
     }
 
+    // ── UA-05 ─────────────────────────────────────────────────────────────
+
     [Fact]
-    public async Task UpdateAsync_MultaCancelada_RetornaFalse()
+    public async Task UA05_MultaYaCancelada_RetornaFalse()
     {
         // Arrange
         var multa = ModelBuilders.Multa(id: 1, estado: "cancelada");
@@ -174,51 +154,46 @@ public class UpdateAsyncTests
         var sut = CrearSut();
 
         // Act
-        var (exito, mensaje) = await sut.UpdateAsync(1, DtoValido());
+        var (exito, mensaje) = await sut.UpdateAsync(1, new MultaUpdateDTO
+        {
+            Tipo   = "economica",
+            Monto  = 100m,
+            Estado = "pendiente"
+        });
 
         // Assert
         exito.Should().BeFalse();
         mensaje.Should().Be("Una multa cancelada no puede modificarse.");
     }
 
-    [Fact]
-    public async Task UpdateAsync_IntentoCambiarEstadoACancelada_RetornaFalse()
-    {
-        // CORRECCIÓN PROBLEMA 2:
-        // ValidarCamposUpdate se ejecuta ANTES de cargar la multa de la BD.
-        // EstadosMultaEditables = ["pendiente", "pagada"].
-        // "cancelada" no está en esa lista → la validación retorna primero con:
-        // "Estado inválido desde edición. Valores permitidos: pendiente, pagada."
-        // El servicio NUNCA llega al check explícito `if (dto.Estado == "cancelada")`.
-        // El test original esperaba "endpoint dedicado" → era incorrecto.
+    // ── UA-06 ─────────────────────────────────────────────────────────────
 
+    [Fact]
+    public async Task UA06_IntentoCambiarEstadoACanceladaPorEdicionDirecta_RetornaFalse()
+    {
         // Arrange
+        // ValidarCamposUpdate se ejecuta ANTES de consultar la BD.
+        // "cancelada" no está en EstadosMultaEditables = ["pendiente", "pagada"]
+        // → retorna el mensaje de validación sin llegar al check explícito.
         var sut = CrearSut();
 
         // Act
-        var (exito, mensaje) = await sut.UpdateAsync(1, DtoValido(estado: "cancelada"));
+        var (exito, mensaje) = await sut.UpdateAsync(1, new MultaUpdateDTO
+        {
+            Tipo   = "economica",
+            Monto  = 100m,
+            Estado = "cancelada"
+        });
 
         // Assert
         exito.Should().BeFalse();
         mensaje.Should().Be("Estado inválido desde edición. Valores permitidos: pendiente, pagada.");
     }
 
-    [Fact]
-    public async Task UpdateAsync_TipoInvalido_RetornaFalse()
-    {
-        // Arrange
-        var sut = CrearSut();
-
-        // Act
-        var (exito, mensaje) = await sut.UpdateAsync(1, DtoValido(tipo: "tipo_invalido"));
-
-        // Assert
-        exito.Should().BeFalse();
-        mensaje.Should().Contain("Tipo de multa inválido");
-    }
+    // ── UA-07 ─────────────────────────────────────────────────────────────
 
     [Fact]
-    public async Task UpdateAsync_MontoNegativo_RetornaFalse()
+    public async Task UA07_TipoMultaVacio_RetornaFalse()
     {
         // Arrange
         var sut = CrearSut();
@@ -226,7 +201,51 @@ public class UpdateAsyncTests
         // Act
         var (exito, mensaje) = await sut.UpdateAsync(1, new MultaUpdateDTO
         {
-            Tipo = "economica", Monto = -1m, Estado = "pendiente"
+            Tipo   = "",
+            Monto  = 100m,
+            Estado = "pendiente"
+        });
+
+        // Assert
+        exito.Should().BeFalse();
+        mensaje.Should().Be("El tipo de multa es obligatorio.");
+    }
+
+    // ── UA-08 ─────────────────────────────────────────────────────────────
+
+    [Fact]
+    public async Task UA08_TipoMultaFueraDeValoresPermitidos_RetornaFalse()
+    {
+        // Arrange
+        var sut = CrearSut();
+
+        // Act
+        var (exito, mensaje) = await sut.UpdateAsync(1, new MultaUpdateDTO
+        {
+            Tipo   = "tipo_invalido",
+            Monto  = 100m,
+            Estado = "pendiente"
+        });
+
+        // Assert
+        exito.Should().BeFalse();
+        mensaje.Should().Contain("Tipo de multa inválido. Valores permitidos: economica, administrativa, mixta.");
+    }
+
+    // ── UA-09 ─────────────────────────────────────────────────────────────
+
+    [Fact]
+    public async Task UA09_MontoNegativo_RetornaFalse()
+    {
+        // Arrange
+        var sut = CrearSut();
+
+        // Act
+        var (exito, mensaje) = await sut.UpdateAsync(1, new MultaUpdateDTO
+        {
+            Tipo   = "economica",
+            Monto  = -500m,
+            Estado = "pendiente"
         });
 
         // Assert
@@ -234,30 +253,69 @@ public class UpdateAsyncTests
         mensaje.Should().Be("El monto no puede ser negativo.");
     }
 
+    // ── UA-10 ─────────────────────────────────────────────────────────────
+
     [Fact]
-    public async Task UpdateAsync_EstadoInvalido_RetornaFalse()
+    public async Task UA10_MontoCero_EsValido()
+    {
+        // Arrange
+        var multa = ModelBuilders.Multa(id: 1, estado: "pendiente");
+        _multaRepoMock.Setup(r => r.GetByIdSimpleAsync(1)).ReturnsAsync(multa);
+        _multaRepoMock.Setup(r => r.SaveChangesAsync()).Returns(Task.CompletedTask);
+
+        var sut = CrearSut();
+
+        // Act
+        var (exito, _) = await sut.UpdateAsync(1, new MultaUpdateDTO
+        {
+            Tipo   = "economica",
+            Monto  = 0m,
+            Estado = "pendiente"
+        });
+
+        // Assert
+        exito.Should().BeTrue();
+    }
+
+    // ── UA-11 ─────────────────────────────────────────────────────────────
+
+    [Fact]
+    public async Task UA11_EstadoVacio_RetornaFalse()
     {
         // Arrange
         var sut = CrearSut();
 
         // Act
-        var (exito, mensaje) = await sut.UpdateAsync(1, DtoValido(estado: "estado_invalido"));
+        var (exito, mensaje) = await sut.UpdateAsync(1, new MultaUpdateDTO
+        {
+            Tipo   = "economica",
+            Monto  = 100m,
+            Estado = ""
+        });
 
         // Assert
         exito.Should().BeFalse();
-        mensaje.Should().Contain("Estado inválido desde edición");
+        mensaje.Should().Be("El estado de la multa es obligatorio.");
     }
 
+    // ── UA-12 ─────────────────────────────────────────────────────────────
+
     [Fact]
-    public async Task UpdateAsync_NoLlamaSaveChanges_CuandoFalla()
+    public async Task UA12_EstadoFueraDeValoresPermitidos_RetornaFalse()
     {
-        // Arrange — la validación falla antes de llegar al repo
+        // Arrange
         var sut = CrearSut();
 
         // Act
-        await sut.UpdateAsync(1, DtoValido(tipo: "tipo_invalido"));
+        var (exito, mensaje) = await sut.UpdateAsync(1, new MultaUpdateDTO
+        {
+            Tipo   = "economica",
+            Monto  = 100m,
+            Estado = "estado_invalido"
+        });
 
         // Assert
-        _multaRepoMock.Verify(r => r.SaveChangesAsync(), Times.Never);
+        exito.Should().BeFalse();
+        mensaje.Should().Contain("Estado inválido desde edición. Valores permitidos: pendiente, pagada.");
     }
 }
