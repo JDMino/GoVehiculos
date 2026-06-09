@@ -1,0 +1,9 @@
+{
+  "nombre": "Admin",
+  "apellido": "Sistema",
+  "email": "admin@gmail.com",
+  "dni": "11111111",
+  "password": "1234",
+  "rolId": 4,
+  "direccionId": null
+}

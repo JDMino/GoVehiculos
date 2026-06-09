@@ -128,7 +128,7 @@ namespace GoVehiculos.API.Controllers
 
             var (exito, mensaje) = await _service.UpdateAsync(id, dto);
             if (!exito) return UnprocessableEntity(new { mensaje });
-            return NoContent();
+            return Ok(new { mensaje });
         }
 
         // ================================================================

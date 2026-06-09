@@ -1,0 +1,18 @@
+Creación del Usuario Administrador Inicial 
+
+Una vez que la base de datos ha sido generada y la API se encuentra en ejecución, es necesario crear el primer usuario con privilegios de Administrador para poder acceder al sistema y gestionar el resto de las entidades.
+Pasos a seguir en Postman:
+
+Abra la aplicación Postman y cree un nuevo Request HTTP.
+
+Configure el método HTTP como POST.
+
+Ingrese la URL apuntando al entorno local de la API: http://localhost:5210/api/usuarios
+
+Vaya a la pestaña Body, seleccione la opción raw y asegúrese de que el formato final sea JSON.
+
+Localice el archivo primer_usuario.json que se provee junto con el proyecto. Abra dicho archivo, copie todo su contenido y péguelo en el área de texto del Body en Postman. (Este archivo contiene un usuario genérico, el valor rolId: 4 es obligatorio ya que corresponde al rol Administrador en la base de datos)
+
+Haga clic en Send.
+
+Si el proceso es exitoso, la API devolverá un código de estado 201 Created y podrá utilizar estas credenciales para acceder al sistema en el siguiente paso.
