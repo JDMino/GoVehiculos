@@ -1,3 +1,11 @@
+Crear la base de datos
+1. Abrir SQL Server Management Studio (SSMS), conectarse a la instancia local y preparar la ejecución de los scripts de base de datos incluidos en el repositorio.
+En el path \GoVehiculos\Creacion_de_BD del repositorio, encontrará la carpeta de scripts: Creacion_de_BD que contiene 3 archivos distintos Debido a que los procedimientos almacenados se encuentran en archivos separados, la ejecución debe realizarse estrictamente en el siguiente orden:
+a) Archivo Principal (Estructura y Datos): Ejecutar primero GoVehiculosDB.sql. Este script creará la base de datos GoVehiculosDB con todas sus tablas, relaciones, restricciones y datos iniciales.
+b) Procedimiento Almacenado 1: Una vez creada la base de datos, ejecutar el archivo SP_CancelarMulta.sql.
+c) Procedimiento Almacenado 2: Finalmente, ejecutar el archivo SP_CrearOrdenMantenimiento.sql.
+
+
 Creación del Usuario Administrador Inicial 
 
 Una vez que la base de datos ha sido generada y la API se encuentra en ejecución, es necesario crear el primer usuario con privilegios de Administrador para poder acceder al sistema y gestionar el resto de las entidades.
